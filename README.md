@@ -18,8 +18,7 @@
 
 ## 2D
 
-<video src="./media/2D.mp4" width="800" height="360" controls></video>
-
+![](./media/2D.gif)
 
 ## How to cite
 For [1D]: Spang, A., Thielmann, M., & Kiss, D. (2024). Rapid ductile strain localization due to thermal runaway. Journal of Geophysical Research: Solid Earth, 129(10), e2024JB028846. https://doi.org/10.1029/2024JB028846
