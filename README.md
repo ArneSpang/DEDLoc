@@ -10,6 +10,7 @@
 - [1D](#1d)
 - [2D](#2d)
 - [How to cite](#how-to-cite)
+- [Funding](#funding)
 
 
 ## 1D
@@ -27,3 +28,6 @@ For [2D]: Spang, A., Thielmann, M., de Montserrat, A., Duretz, T.. Transient pro
 
 [1D]: https://agupubs.onlinelibrary.wiley.com/doi/full/10.1029/2024JB028846
 [2D]: https://doi.org/10.22541/essoar.173884466.65638309/v1
+
+## Funding
+This research was funded by the DFG grant TH 2076/8-1 awarded to Marcel Thielmann. This research has been supported by the Swiss University Conference and the Swiss Council of Federal Institutes of Technology through the Platform for Advanced Scientific Computing (PASC), obtained via the PASC project GPU4GEO.
