@@ -6,7 +6,8 @@ using ParallelStencil.FiniteDifferences2D
 
 using Plots, Printf, Statistics, LinearAlgebra, GeoParams, JLD2
 
-include("InitBC.jl")
+include("Initialize.jl")
+include("BC.jl")
 include("Geom.jl")
 include("Timestep.jl")
 include("SaveLoadPlot.jl")
