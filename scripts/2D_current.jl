@@ -433,47 +433,4 @@ ix, iy = INDICES[1], INDICES[2]
     end
 end
 
-function inter(X)
-    Y = zeros(size(X, 1) - 1, size(X, 2) - 1)
-    for ix = 1 : size(X, 1) - 1
-        for iy = 1 : size(X, 2) - 1
-            Y[ix, iy] = (X[ix,iy] + X[ix+1,iy] + X[ix,iy+1] + X[ix+1,iy+1])/4.0
-        end
-    end
-    return Y
-end
-
-function extra!(X, Y, nx, ny)
-    Y[2:end-1,2:end-1] = inter(X)
-    for iy = 1 : ny+1
-        Y[1, iy]   = Y[2, iy]
-        Y[end, iy] = Y[end-1, iy]
-    end
-    for ix = 1 : nx+1
-        Y[ix, 1]   = Y[ix, 2]
-        Y[ix, end] = Y[ix, end-1]
-    end
-end
-
-# iteration loop
-@parallel function update_ρ!(ρ::A, ρ_o::A, ∇V::A, κ::A, ρCp::A, dt::N, λ::N, Cp::N, compFlag::N) where {A<:Data.Array, N<:Number}
-    @all(ρ)   = @all(ρ_o) * exp(-@all(∇V) * dt * compFlag)
-    @all(ρCp) = @all(ρ) * Cp
-    @all(κ)   = λ / @all(ρCp)
-    return
-end
-
-@parallel function divVel!(∇V::A, Vx::A, Vy::A, dxn::A, dyn::A) where {A<:Data.Array}
-    @all(∇V) = @d_xi(Vx) / @all(dxn) + @d_yi(Vy) / @all(dyn)
-    return   
-end
-
-@parallel function update_P!(P::A, P_o::A, ∇V::A, Kb::A, η::A, ResP::A, dψP::A, PUp::A, dt::N, max_nxy::N, dampP::N, compFlag::N) where {A<:Data.Array, N<:Number}
-    @all(ResP) = @all(∇V)  + compFlag  * (@all(P) - @all(P_o)) / (dt * @all(Kb))
-    @all(dψP)  = 10.0      * @all(η)   / max_nxy
-    @all(PUp)  = dampP     * @all(PUp) + @all(ResP)
-    @inn_x(P)  = @inn_x(P) - @all(PUp) * @all(dψP)
-    return    
-end
-
 @time ElaDifDisLTP_2D()

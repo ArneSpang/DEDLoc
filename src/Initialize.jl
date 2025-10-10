@@ -228,3 +228,27 @@ function Mat2PS(G, G_nodes, Kb, κ, ρ0, ρCp)
     ρCp       = Data.Array(ρCp)
     return G, G_nodes, Kb, κ, ρ, ρ_o, ρCp
 end
+
+# interpolates values by half a cell
+function inter(X)
+    Y = zeros(size(X, 1) - 1, size(X, 2) - 1)
+    for ix = 1 : size(X, 1) - 1
+        for iy = 1 : size(X, 2) - 1
+            Y[ix, iy] = (X[ix,iy] + X[ix+1,iy] + X[ix,iy+1] + X[ix+1,iy+1])/4.0
+        end
+    end
+    return Y
+end
+
+# extrapolates values by one cell
+function extra!(X, Y, nx, ny)
+    Y[2:end-1,2:end-1] = inter(X)
+    for iy = 1 : ny+1
+        Y[1, iy]   = Y[2, iy]
+        Y[end, iy] = Y[end-1, iy]
+    end
+    for ix = 1 : nx+1
+        Y[ix, 1]   = Y[ix, 2]
+        Y[ix, end] = Y[ix, end-1]
+    end
+end
