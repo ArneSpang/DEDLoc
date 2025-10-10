@@ -12,6 +12,7 @@ include("Geom.jl")
 include("Timestep.jl")
 include("SaveLoadPlot.jl")
 include("Rheology.jl")
+include("Energy.jl")
 include("Solver.jl")
 
 end
