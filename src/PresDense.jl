@@ -1,3 +1,5 @@
+export update_ρ!, divVel!, update_P!
+
 # update density
 @parallel function update_ρ!(ρ::A, ρ_o::A, ∇V::A, κ::A, ρCp::A, dt::N, λ::N, Cp::N, compFlag::N) where {A<:Data.Array, N<:Number}
     @all(ρ)   = @all(ρ_o) * exp(-@all(∇V) * dt * compFlag)

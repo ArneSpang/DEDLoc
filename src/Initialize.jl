@@ -1,3 +1,5 @@
+export nonDimInput, nonDimMatParam, preAllocVel, preAllocEps, preAllocTau, preAllocEta, preAllocTemp, preAllocErr, preAllocRest, Sol2PS, Rheo2PS, Mat2PS, Coord2PS, extra!
+
 # nondimensionalizes input parameters
 function nonDimInput(t_end, Lx, Ly, εbg, T0, T1, P0, dt0, gs0, dT_ref0, dτ_crit, rad_x, rad_y, x_off, y_off, restartName, restartFlag, saveName)
     if restartFlag
@@ -227,6 +229,17 @@ function Mat2PS(G, G_nodes, Kb, κ, ρ0, ρCp)
     ρ_o       = copy(ρ)
     ρCp       = Data.Array(ρCp)
     return G, G_nodes, Kb, κ, ρ, ρ_o, ρCp
+end
+
+# converts coordinate arrays to DataArrays
+function Coord2PS(dxn, dxc, dxn_v, dyn, dyc, dyn_v)
+    dxn       = Data.Array(dxn)
+    dxc       = Data.Array(dxc)
+    dxn_v     = Data.Array(dxn_v)
+    dyn       = Data.Array(dyn)
+    dyc       = Data.Array(dyc)   
+    dyn_v     = Data.Array(dyn_v)
+    return dxn, dxc, dxn_v, dyn, dyc, dyn_v
 end
 
 # interpolates values by half a cell

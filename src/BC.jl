@@ -1,3 +1,7 @@
+export InitBC!
+export applyEtaBC!, applyTauBC!, applyFluxBC!, applyVelBC!, applyPTBC!
+export bc_expand_x!, bc_expand_y!
+
 # set boundary conditions
 @parallel_indices (iy) function bc_expand_x!(A::T) where {T<:Data.Array}
     A[  1, iy] = A[    2, iy]

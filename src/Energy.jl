@@ -1,3 +1,5 @@
+export diss_energy_full!, diss_energy!, fluxes!, diffusion!
+
 # compute dissipation for all mechanisms
 @parallel function diss_energy_full!(εII_dif::A, εII_dis::A, εII_pei::A, εII_v::A, H::A, H_dif::A, H_dis::A, H_pei::A, H_reg::A, τII_vtrue::A, τII_reg::A, τxx::A, τyy::A, τxy_cen::A, εxx::A, εyy::A, εxy_cen::A, η_e::A, heatFlag::N, elaFlag::N) where {A<:Data.Array, N<:Number}
     @all(H_dif)   = @all(τII_vtrue) * @all(εII_dif) * 2.0 * heatFlag;

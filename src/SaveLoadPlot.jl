@@ -1,3 +1,6 @@
+export initEvo, trackProperties!, saveEvo, saveFullField, saveRestart, loadRestart
+export SH_2D_plot
+
 # initialize vectors used for tracking
 function initEvo(T, τII, Vx, η_v, εII)
     return [0.0], Array{Float64}(undef, 0), [maximum(T)], [mean(T)], [maximum(τII)], [mean(τII)], [maximum(abs.(Vx))], [minimum(η_v)], [maximum(εII)], 

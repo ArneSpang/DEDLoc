@@ -1,3 +1,5 @@
+export makeCoordsNew, Coord2PS, InitTemp!, setAnoms!
+
 # creates 1D vector of coordinates with refinement in the center (used by makeCoordsNew)
 function vSpace(x1, x2, n, r; i=false)
     # x1: starting coordinate
@@ -91,17 +93,6 @@ function makeCoordsNew(Lx, Ly, nx, ny, mode)
     mdyn_v = [ dyn[iy] for ix=1:nx+1, iy=1:ny]
 
     return mxn, mxc, mdxn, mdxc, mdxn_v, myn, myc, mdyn, mdyc, mdyn_v
-end
-
-# turn coordinate distances into ParallelStencil arrays
-function Coord2PS(dxn, dxc, dxn_v, dyn, dyc, dyn_v)
-    dxn       = Data.Array(dxn)
-    dxc       = Data.Array(dxc)
-    dxn_v     = Data.Array(dxn_v)
-    dyn       = Data.Array(dyn)
-    dyc       = Data.Array(dyc)   
-    dyn_v     = Data.Array(dyn_v)
-    return dxn, dxc, dxn_v, dyn, dyc, dyn_v
 end
 
 # initialize temperature field

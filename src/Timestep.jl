@@ -1,3 +1,5 @@
+export displayTimestep, rescaleTime!, rescaleEvoTime!, save_old!, save_oldold!, resetVals!, updateTimestep, printNewTimestep, checkTimestep, findTol, AdjustDamp, raiseTol, raiseTol2, makePrediction, setPrediction!
+
 # displays time step in appropriate unit (for plotting)
 function displayTimestep(dt_dim)
     if dt_dim > 3600*24*365.25

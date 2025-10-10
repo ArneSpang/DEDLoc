@@ -1,3 +1,8 @@
+export DifCreep, DisCreep, LTPCreep
+export initalVisc, update_η_e!, comp_η, eff_η!, interp_η!, interp_η_dxdy!
+export old_elastic_strain_rate!, full_strain_rate!, eff_strain_rate!, interp_strain_rate!, second_strain_rate!, part_ε_new!, true_part_ε!, ε_ela!
+export update_τ!
+
 ## viscosity structures
 struct DifCreep{T, F}
     E::T

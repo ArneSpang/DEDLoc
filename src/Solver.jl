@@ -1,3 +1,5 @@
+export residuals!, new_step!, comp_update!, apply_update!, checkError, AbsErr!, RelErr!, MinErr!
+
 # compute residuals
 @parallel function residuals!(ResVx::A, ResVy::A, ResP::A, ResT::A, τxx::A, τyy::A, τxy::A, ∇V::A, P::A, P_o::A, T::A, T_o::A, Kb::A, dT_diff::A, H::A, ρCp::A, dxc::A, dyc::A, dxn_v::A, dyn_v::A, dt::N, α::N, compFlag::N) where {A<:Data.Array, N<:Number}
     @all(ResVx) = (@d_xa(τxx) - @d_xa(P)) / @all(dxc) + @d_ya(τxy) / @all(dyn_v)
