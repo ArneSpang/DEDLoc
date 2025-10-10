@@ -1,4 +1,5 @@
 const USE_GPU = true # Use GPU? If this is set false, then no GPU needs to be available
+
 using ParallelStencil
 using ParallelStencil.FiniteDifferences2D
 @static if USE_GPU
@@ -10,12 +11,6 @@ end
 using Plots, Printf, Statistics, LinearAlgebra, GeoParams, JLD2
 import ParallelStencil: INDICES
 ix, iy = INDICES[1], INDICES[2]
-
-include("Modules/Support_InitBC.jl")
-include("Modules/Support_Geom.jl")
-include("Modules/Support_Timestep.jl")
-include("Modules/Support_SaveLoadPlot.jl")
-include("Modules/Support_Rheology.jl")
 
 @views function ElaDifDisLTP_2D()
 ###############
