@@ -1,4 +1,4 @@
-const USE_GPU = true # Use GPU? If this is set false, then no GPU needs to be available
+const USE_GPU = true
 
 using ParallelStencil
 using ParallelStencil.FiniteDifferences2D
@@ -9,8 +9,8 @@ else
     @init_parallel_stencil(Threads, Float64, 2)
 end
 using Plots, Printf, Statistics, LinearAlgebra, GeoParams, JLD2
-import ParallelStencil: INDICES
-ix, iy = INDICES[1], INDICES[2]
+
+using DEDLoc.CUDA_2D
 
 @views function ElaDifDisLTP_2D()
 ###############
@@ -49,8 +49,8 @@ ix, iy = INDICES[1], INDICES[2]
 
     # solver
     dt0         = 2.5e1yr   # reference timestep
-    nx          = 1536      # number of cells x
-    ny          = 256       # number of cells y
+    nx          = 384       # number of cells x
+    ny          = 64        # number of cells y
     dT_ref0     = 50K       # change of temperature for timestep scaling
     dτ_crit     = 100MPa    # critical change of stress for timestep scaling
     VdmpX0      = 12.0      # dampening parameter for velocity update
@@ -69,8 +69,8 @@ ix, iy = INDICES[1], INDICES[2]
     # anomaly
     anomType    = 1         # [0: load from file, 1: center, 2: boundary, 3: boundary and inside]
     anomFile    = ""
-    rad_x       = Lx/160    # major semi-axis for ellipsoidal anomaly
-    rad_y       = Lx/480    # minor semi-axis for ellipsoidal anomaly
+    rad_x       = Lx/40    # major semi-axis for ellipsoidal anomaly
+    rad_y       = Lx/120    # minor semi-axis for ellipsoidal anomaly
     x_off       = 0.0km     # horizontal offset
     y_off       = 0.0km     # vertical offset
     θ           = 0         # rotation of ellipse
@@ -106,7 +106,7 @@ ix, iy = INDICES[1], INDICES[2]
     LTP_σb      = 1.8e3MPa             # back stress
     βL          = 0.09 / (1000*MPa)    # pressure dependence for σL
     βb          = 0.02 / (1000*MPa)    # pressure dependence for σb
-    P_Href      = 65000*MPa            # reference pressure from experiments
+    P_Href      = 6500*MPa             # reference pressure from experiments
 
     # conversion between differential and deviatoric
     FE          = 2.0 / sqrt(3)

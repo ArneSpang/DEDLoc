@@ -1,5 +1,7 @@
 using Printf, Statistics, Plots, GeoParams, JLD2
 
+using DEDLoc.CPU_1D
+
 function ElaDisDifLTP_1D(epsVal, Gval, sigB, L, λval, Tbg, ωmax, hL, reg, reso, saveName; anomType=2, regType=1)
     # epsVal:   background strainrate [1/s]
     # Gval:     Shear modulus [GPa]
@@ -539,3 +541,5 @@ function ElaDisDifLTP_1D(epsVal, Gval, sigB, L, λval, Tbg, ωmax, hL, reg, reso
         end
     end
 end
+
+#@time ElaDisDifLTP_1D(5e-13, 80.0, 1.8, 10.0, 3.0, 650.0, 2.0, 0.02, 1e12, 127, "Ref")

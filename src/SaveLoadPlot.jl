@@ -1,5 +1,5 @@
 export initEvo, trackProperties!, saveEvo, saveFullField, saveRestart, loadRestart
-export SH_2D_plot
+export domMech!, SH_2D_plot
 
 # initialize vectors used for tracking
 function initEvo(T, τII, Vx, η_v, εII)

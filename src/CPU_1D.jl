@@ -1,7 +1,7 @@
-module 1D
+module CPU_1D
 
 using Printf, Statistics, Plots, GeoParams, JLD2
 
-include("1D_helper.jl")
+include("Helper_1D.jl")
 
 end
