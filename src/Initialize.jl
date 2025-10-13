@@ -270,7 +270,7 @@ end
 
 # interpolate from cell centers to vertices
 @parallel_indices (ix, iy) function center2vertex!(vert, cen)
-    vert[ix, iy] = (cen[ix, iy] + cen[ix, iy+1] + cen[ix+1, iy] + cen[ix+1, iy+1]) * 0.25
+    vert[ix, iy] = (cen[ix-1, iy-1] + cen[ix-1, iy] + cen[ix, iy-1] + cen[ix, iy]) * 0.25
     return nothing
 end
 

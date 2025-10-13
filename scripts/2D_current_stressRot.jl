@@ -72,7 +72,7 @@ using DEDLoc.CUDA_2D
     Pdmp        = 0.0       # NOT IN USE ANYMORE. dampening parameter for pressure update 
     tol0        = 1e-6      # tolerance
     nt          = 500e3     # maximum number of iterations
-    nt_min      = 5e3       # minimum number of iterations
+    nt_min      = 1e3       # minimum number of iterations
     nout        = 1e3       # output frequency
     η_rel       = 0.01      # viscosity relaxation
     CFL         = 0.5       # CFL-criterion
@@ -511,11 +511,13 @@ using DEDLoc.CUDA_2D
         move_particles!(particles, xvi_device, particle_args)
         # check if we need to inject particles
         # need stresses on the vertices for injection purposes
+        println("Starting stress interpolation")
         @parallel (1:nx+1, 2:ny) center2vertex_x!(τxx_v, τxx) #center2vertex!(τxx_v, τxx)
         @parallel (1:nx+1)       bc_expand_y!(τxx_v)
         @parallel (2:nx, 2:ny)   center2vertex!(τyy_v, τyy) #center2vertex!(τyy_v, τyy)
         @parallel (2:ny)         bc_expand_x!(τyy_v)
         @parallel (1:nx+1)       bc_expand_y!(τyy_v)
+        println("Finished stress interpolation")
         inject_particles_phase!(
             particles,
             pPhases,
@@ -524,9 +526,11 @@ using DEDLoc.CUDA_2D
             xvi_device
         )
         
+        println("Particle to grid")
         particle2grid!(Tn, pT, xvi_device, particles)
 
-        @parallel (2:nx+1, 1:ny) vertex2center_x!(T, Tn)
+        println("Interpolating temperature back to grid")
+        @parallel (1:nx+1, 2:ny) vertex2center_x!(T, Tn)
         @parallel (1:ny)         bc_expand_x!(T)
 
 
