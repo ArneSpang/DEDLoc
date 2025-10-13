@@ -56,6 +56,7 @@ using DEDLoc.CUDA_2D
     P0          = 20e3MPa   # background pressure
     gs0         = 1e-3mm    # initial grain size
     gridType    = "RefineY" # type of grid ["Regular", "RefineY"]
+    dmin        = 25m       # minimum cell size for exponential grid
 
     # solver
     dt0         = 2.5e1yr   # reference timestep
@@ -147,7 +148,7 @@ using DEDLoc.CUDA_2D
     #t_end   = maxStrain / εbg
 
     # nondimensionalize
-    CD, t_end, Lx, Ly, εbg, T0, T1, P0, dt0, gs0, dT_ref0, dτ_crit, rad_x, rad_y, x_off, y_off, restartName = nonDimInput(t_end, Lx, Ly, εbg, T0, T1, P0, dt0, gs0, dT_ref0, dτ_crit, rad_x, rad_y, x_off, y_off, restartName, restartFlag, saveName)
+    CD, t_end, Lx, Ly, εbg, T0, T1, P0, dt0, gs0, dT_ref0, dτ_crit, rad_x, rad_y, x_off, y_off, dmin, restartName = nonDimInput(t_end, Lx, Ly, εbg, T0, T1, P0, dt0, gs0, dT_ref0, dτ_crit, rad_x, rad_y, x_off, y_off, dmin, restartName, restartFlag, saveName)
     η_reg, η_max, Adif, Edif, Vdif, Adis, Edis, Vdis, ALTP, ELTP, VLTP, LTP_σL, LTP_K, LTP_σb, βL, βb, P_Href, R, G0, ρ0, Cp, λ, α = nonDimMatParam(η_reg, η_max, Adif, Edif, Vdif, Adis, Edis, Vdis, ALTP, ELTP, VLTP, LTP_σL, LTP_K, LTP_σb, βL, βb, P_Href, R, G0, ρ0, Cp, λ, α, CD)
 
     # apply hardening to LTP

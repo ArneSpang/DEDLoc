@@ -15,5 +15,6 @@ include("PresDense.jl")
 include("Rheology.jl")
 include("Energy.jl")
 include("Solver.jl")
+include("Particles.jl")
 
 end

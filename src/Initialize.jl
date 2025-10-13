@@ -1,7 +1,7 @@
 export nonDimInput, nonDimMatParam, preAllocVel, preAllocEps, preAllocTau, preAllocEta, preAllocTemp, preAllocErr, preAllocRest, Sol2PS, Rheo2PS, Mat2PS, Coord2PS, extra!
 
 # nondimensionalizes input parameters
-function nonDimInput(t_end, Lx, Ly, εbg, T0, T1, P0, dt0, gs0, dT_ref0, dτ_crit, rad_x, rad_y, x_off, y_off, restartName, restartFlag, saveName)
+function nonDimInput(t_end, Lx, Ly, εbg, T0, T1, P0, dt0, gs0, dT_ref0, dτ_crit, rad_x, rad_y, x_off, y_off, dmin, restartName, restartFlag, saveName)
     if restartFlag
         if length(restartName) == 0
             restartName = saveName*"_restart.jld2"
@@ -28,8 +28,9 @@ function nonDimInput(t_end, Lx, Ly, εbg, T0, T1, P0, dt0, gs0, dT_ref0, dτ_cri
     rad_y   = nondimensionalize(rad_y,   CD)
     x_off   = nondimensionalize(x_off,   CD)
     y_off   = nondimensionalize(y_off,   CD)
+    dmin    = nondimensionalize(dmin,    CD)
 
-    return CD, t_end, Lx, Ly, εbg, T0, T1, P0, dt0, gs0, dT_ref0, dτ_crit, rad_x, rad_y, x_off, y_off, restartName
+    return CD, t_end, Lx, Ly, εbg, T0, T1, P0, dt0, gs0, dT_ref0, dτ_crit, rad_x, rad_y, x_off, y_off, dmin, restartName
 end
 
 # nondimensionalizes material parameters
