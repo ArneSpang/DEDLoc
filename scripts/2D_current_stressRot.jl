@@ -161,7 +161,7 @@ using DEDLoc.CUDA_2D
 
     # derived properties
     ind_cen = Int64(ceil(ny/2))
-    xn, xc, dxn, dxc, dxn_v, yn, yc, dyn, dyc, dyn_v, dxn_g, dxn_I, dxc_I, dyn_I, dyc_I = makeCoordsNew(Lx, Ly, nx, ny, gridType; d0=dmin)    # grid
+    xn, xc, dxn, dxc, dxn_v, yn, yc, dyn, dyc, dyn_v, dxn_I, dxc_I, dyn_I, dyc_I = makeCoordsNew(Lx, Ly, nx, ny, gridType)    # grid
     max_Lxy = max(Lx, Ly)                                 # maximum model dimension
     min_dxy = minimum([dxn[:]; dxc[:]; dyn[:]; dyc[:]])   # minimum spacing
     max_n   = max(nx, ny)                                 # maximum number of nodes in any direction
@@ -278,7 +278,7 @@ using DEDLoc.CUDA_2D
     P, P_o, T, T_o, Vx, Vy                            = Sol2PS(P, T, Vx, Vy)
     η, η_e, η_v, η_dif, η_dis, η_LTP, ωI, ωIb, ε_part = Rheo2PS(η, η_e, η_v, η_dif, η_dis, η_LTP, ωI, ωIb, ε_part)
     G, G_nodes, Kb, κ, ρ, ρ_o, ρCp                    = Mat2PS(G, G_nodes, Kb, κ, ρ0, ρCp)
-    dxn, dxc, dxn_v, dyn, dyc, dyn_v, dxn_g           = Coord2PS(dxn, dxc, dxn_v, dyn, dyc, dyn_v, dxn_g)
+    dxn, dxc, dxn_v, dyn, dyc, dyn_v                  = Coord2PS(dxn, dxc, dxn_v, dyn, dyc, dyn_v)
     
     # initialize T at the particles
     centroid2particle!(pT, xci_device, Data.Array(T[2:end-1, :]), particles)
@@ -549,4 +549,4 @@ using DEDLoc.CUDA_2D
     return nothing
 end
 
-@time ElaDifDisLTP_2D()
+#@time ElaDifDisLTP_2D()

@@ -1,4 +1,5 @@
-export nonDimInput, nonDimMatParam, preAllocVel, preAllocEps, preAllocTau, preAllocEta, preAllocTemp, preAllocErr, preAllocRest, Sol2PS, Rheo2PS, Mat2PS, Coord2PS, extra!
+export nonDimInput, nonDimMatParam, preAllocVel, preAllocEps, preAllocTau, preAllocEta, preAllocTemp, preAllocErr, preAllocRest, Sol2PS, Rheo2PS, Mat2PS, Coord2PS
+export extra!, center2vertex!, center2vertex_x!, vertex2center_x!
 
 # nondimensionalizes input parameters
 function nonDimInput(t_end, Lx, Ly, εbg, T0, T1, P0, dt0, gs0, dT_ref0, dτ_crit, rad_x, rad_y, x_off, y_off, dmin, restartName, restartFlag, saveName)

@@ -3,6 +3,8 @@ module CPU_2D
 using ParallelStencil
 using ParallelStencil.FiniteDifferences2D
 @init_parallel_stencil(Threads, Float64, 2)
+using JustPIC, JustPIC._2D
+const backend_JP = JustPIC.CPUBackend
 
 using Plots, Printf, Statistics, LinearAlgebra, GeoParams, JLD2
 

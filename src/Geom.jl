@@ -50,8 +50,7 @@ function vSpace(x1, x2, n, r; i=false)
 end
 
 # creates coordinates
-function makeCoordsNew(Lx, Ly, nx, ny, mode; d0=1)
-    # xc and yc include a full layer of ghost cells
+function makeCoordsNew(Lx, Ly, nx, ny, mode)
     if mode=="Regular"
         dx     = Lx / nx
         xn     = collect(-Lx/2.0:dx:Lx/2.0)
@@ -63,14 +62,9 @@ function makeCoordsNew(Lx, Ly, nx, ny, mode; d0=1)
         dx     = Lx / nx
         xn     = collect(-Lx/2.0:dx:Lx/2.0)
         xc     = collect(-Lx/2.0-dx/2.0:dx:Lx/2.0+dx/2.0)
-        yn     = vSpace(-Ly/2, Ly/2, ny, 10.0)
+        yn     = vSpace(-Ly/2, Ly/2, ny, 2.0)
         yc     = (yn[1:end-1] .+ yn[2:end]) / 2.0
         yc     = [2*yn[1]-yc[1]; yc; 2*yn[end]-yc[end]]
-    elseif mode=="RefineY_exp"
-        dx     = Lx / nx
-        xn     = collect(-Lx/2.0:dx:Lx/2.0)
-        xc     = collect(-Lx/2.0-dx/2.0:dx:Lx/2.0+dx/2.0)
-        yn, yc, dy = makeExpoGrid(Ly, ny, d0, -Ly/2.0)
     else
         print("Coordinate mode not understood! Using regular grid spacing!\n")
         dx     = Lx / nx
@@ -86,23 +80,19 @@ function makeCoordsNew(Lx, Ly, nx, ny, mode; d0=1)
     dyn    = diff(yn)
     dyc    = diff(yc)
 
-    xnG    = cat(xn[1]-dxn[1], xn, xn[end]+dxn[end], dims=1)
-    dxnG   = diff(xnG)
-
     mxn    = [xn[ix] for ix=1:nx+1, iy=1:ny+1]
-    mxc    = [xc[ix] for ix=1:nx+2, iy=1:ny+2]
+    mxc    = [xc[ix] for ix=1:nx+2,   iy=1:ny]
     myn    = [yn[iy] for ix=1:nx+1, iy=1:ny+1]
-    myc    = [yc[iy] for ix=1:nx+2, iy=1:ny+2]
+    myc    = [yc[iy] for ix=1:nx,   iy=1:ny+2]
 
-    mdxn   = [dxn[ix]  for ix=1:nx,   iy=1:ny]
-    mdyn   = [dyn[iy]  for ix=1:nx,   iy=1:ny]
-    mdxc   = [dxc[ix]  for ix=1:nx+1, iy=1:ny+1]
-    mdyc   = [dyc[iy]  for ix=1:nx+1, iy=1:ny+1]
-    mdxn_v = [dxn[ix]  for ix=1:nx,   iy=1:ny-1]
-    mdyn_v = [dyn[iy]  for ix=1:nx+1, iy=1:ny]
-    mdxn_g = [dxnG[ix] for ix=1:nx+2, iy=1:ny]
+    mdxn   = [ dxn[ix] for ix=1:nx,   iy=1:ny]
+    mdyn   = [ dyn[iy] for ix=1:nx,   iy=1:ny]
+    mdxc   = [ dxc[ix] for ix=1:nx+1, iy=1:ny+1]
+    mdyc   = [ dyc[iy] for ix=1:nx+1, iy=1:ny+1]
+    mdxn_v = [ dxn[ix] for ix=1:nx,   iy=1:ny-1]
+    mdyn_v = [ dyn[iy] for ix=1:nx+1, iy=1:ny]
 
-    return mxn, mxc, mdxn, mdxc, mdxn_v, myn, myc, mdyn, mdyc, mdyn_v, mdxn_g, 1.0 ./ mdxn, 1.0 ./ mdxc, 1.0 ./ mdyn, 1.0 ./ mdyc
+    return mxn, mxc, mdxn, mdxc, mdxn_v, myn, myc, mdyn, mdyc, mdyn_v, 1.0 ./ mdxn, 1.0 ./ mdxc, 1.0 ./ mdyn, 1.0 ./ mdyc
 end
 
 # initialize temperature field

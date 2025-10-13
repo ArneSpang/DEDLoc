@@ -4,6 +4,8 @@ using CUDA
 using ParallelStencil
 using ParallelStencil.FiniteDifferences2D
 @init_parallel_stencil(CUDA, Float64, 2)
+using JustPIC, JustPIC._2D
+const backend_JP = CUDABackend
 
 using Plots, Printf, Statistics, LinearAlgebra, GeoParams, JLD2
 

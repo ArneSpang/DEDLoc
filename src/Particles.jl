@@ -1,3 +1,6 @@
+export subgrid_characteristic_time!, StressParticles, compute_vorticity!, rotate_stress_particles!, stress2grid!, rotate_stress!
+export unwrap, normal_stress, shear_stress, shear_vorticity
+
 # compute characteristic time for subgrid diffusion
 @parallel_indices (I...) function subgrid_characteristic_time!(dt₀, ρCp, λ, dxi)
 
