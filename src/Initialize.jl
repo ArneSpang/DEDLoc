@@ -265,3 +265,21 @@ function extra!(X, Y, nx, ny)
         Y[ix, end] = Y[ix, end-1]
     end
 end
+
+# interpolate from cell centers to vertices
+@parallel_indices (ix, iy) function center2vertex!(vert, cen)
+    vert[ix, iy] = (cen[ix, iy] + cen[ix, iy+1] + cen[ix+1, iy] + cen[ix+1, iy+1]) * 0.25
+    return nothing
+end
+
+# interpolate from cell centers to vertices if there is extra centers in x-direction
+@parallel_indices (ix, iy) function center2vertex_x!(vert, cen)
+    vert[ix, iy] = (cen[ix, iy-1] + cen[ix, iy] + cen[ix+1, iy-1] + cen[ix+1, iy]) * 0.25
+    return nothing
+end
+
+# interpolate from vertices to cell centers if there is extra centers in x-direction
+@parallel_indices (ix, iy) function vertex2center_x!(cen, vert)
+    cen[ix, iy] = (vert[ix-1,iy] + vert[ix,iy] + vert[ix-1,iy+1] + vert[ix,iy+1]) * 0.25
+    nothing
+end
