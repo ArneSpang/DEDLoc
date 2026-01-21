@@ -114,7 +114,7 @@ end
 end
 
 # makes plot
-function SH_2D_plot(xn, yn, xc, yc, dt, Vx, Vy, T, P, τII, t_evo, CD, step, its_evo, ErrVx_evo, ErrVy_evo, ErrT_evo, ErrP_evo, dom, outDirName)
+function SH_2D_plot(xn, yn, xc, yc, dt, Vx, Vy, T, P, τII, t_evo, CD, step, its_evo, ErrVx_evo, ErrVy_evo, ErrT_evo, ErrP_evo, Errη_evo, dom, outDirName)
     
     # redimensionalize
     xn_p    = ustrip(dimensionalize(xn,                   km,      CD))
@@ -142,6 +142,7 @@ function SH_2D_plot(xn, yn, xc, yc, dt, Vx, Vy, T, P, τII, t_evo, CD, step, its
     plot!(p3, its_evo, ErrVy_evo, linestyle=:dash, label="Vy")
     plot!(p3, its_evo, ErrT_evo,  linestyle=:dash, label="T")
     plot!(p3, its_evo, ErrP_evo,  linestyle=:dash, label="P")
+    plot!(p3, its_evo, Errη_evo,  linestyle=:dash, label="η")
     p4      = heatmap(xc_p[:,1], yc_p[1,:], Array(dom)',  xlabel="X [km]", ylabel="Y[km]", title="Dominant mechanism", clim=(0,4))
     savefig(plot(p1, p2, p3, p4, layout=(2,2)), @sprintf("%s/%06d.png", outDirName, step))
 

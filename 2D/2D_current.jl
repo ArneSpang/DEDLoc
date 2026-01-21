@@ -65,8 +65,8 @@ include("Modules/Support_Rheology.jl")
     Tdmp        = 16.0      # dampening parameter for temperature update
     Pdmp        = 0.0       # NOT IN USE ANYMORE. dampening parameter for pressure update 
     tol0        = 1e-6      # tolerance
+    Vtol        = 1e-2      # tolerance for viscosity convergence
     nt          = 500e3     # maximum number of iterations
-    nt_min      = 5e3       # minimum number of iterations
     nout        = 1e3       # output frequency
     η_rel       = 0.01      # viscosity relaxation
     CFL         = 0.5       # CFL-criterion
@@ -111,7 +111,7 @@ include("Modules/Support_Rheology.jl")
     LTP_σb      = 1.8e3MPa             # back stress
     βL          = 0.09 / (1000*MPa)    # pressure dependence for σL
     βb          = 0.02 / (1000*MPa)    # pressure dependence for σb
-    P_Href      = 65000*MPa            # reference pressure from experiments
+    P_Href      = 6500*MPa             # reference pressure from experiments
 
     # conversion between differential and deviatoric
     FE          = 2.0 / sqrt(3)
@@ -235,8 +235,8 @@ include("Modules/Support_Rheology.jl")
 
     # numerical stuff
     err = 1
-    iter, mean_ResVx, mean_ResVy, mean_ResT, mean_ResP, mean_ResEps, dampReset, ndampRe, nRaise= 0, 0, 0, 0, 0, 0, 0, 0, 0
-    err_evo, its_evo, ErrVx_evo, ErrVy_evo, ErrT_evo, ErrP_evo = (Array{Float64}(undef, 0) for _ = 1:6)
+    iter, mean_ResVx, mean_ResVy, mean_ResT, mean_ResP, mean_ResEps, mean_ResVisc, dampReset, ndampRe, nRaise= 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
+    err_evo, its_evo, ErrVx_evo, ErrVy_evo, ErrT_evo, ErrP_evo, Errη_evo = (Array{Float64}(undef, 0) for _ = 1:7)
     VdmpX, VdmpY = VdmpX0, VdmpY0
     dampVx, dampVy = dampFlag * (1.0 - VdmpX/nx), dampFlag * (1.0 - VdmpY/ny)
 
@@ -306,15 +306,15 @@ include("Modules/Support_Rheology.jl")
 
             # reset
             err = 1
-            iter, mean_ResVx, mean_ResVy, mean_ResT, mean_ResP, mean_ResEps, dampReset, ndampRe, nRaise = 0, 0, 0, 0, 0, 0, 0, 0, 0
-            err_evo, its_evo, ErrVx_evo, ErrVy_evo, ErrT_evo, ErrP_evo = (Array{Float64}(undef, 0) for _ = 1:6)
+            iter, mean_ResVx, mean_ResVy, mean_ResT, mean_ResP, mean_ResEps, mean_ResVisc, dampReset, ndampRe, nRaise = 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
+            err_evo, its_evo, ErrVx_evo, ErrVy_evo, ErrT_evo, ErrP_evo, Errη_evo = (Array{Float64}(undef, 0) for _ = 1:7)
             VdmpX, VdmpY = VdmpX0, VdmpY0
             dampVx, dampVy = dampFlag * (1.0 - VdmpX/nx), dampFlag * (1.0 - VdmpY/ny)
 
 ########################
 #### Iteration Loop ####
 ########################
-            while !ReFlag && ((err > tol || iter < nt_min) && iter < nt && !nanFlag) && !ConvFlag
+            while !ReFlag && (err > tol && iter < nt && !nanFlag) && !ConvFlag
                 iter += 1
                 
                 # divergence of velocity
@@ -395,22 +395,25 @@ include("Modules/Support_Rheology.jl")
                     @parallel AbsErr!(AbsVx, AbsVy, AbsT, AbsP, ResVx, ResVy, ResT, ResP, V0, T0, P0)
                     @parallel RelErr!(RelVx, RelVy, RelT, RelP, ResVx, ResVy, ResT, ResP, Vx, Vy, T, P, V0, T0, P0)
                     @parallel MinErr!(ErrVx, ErrVy, ErrT, ErrP, AbsVx, AbsVy, AbsT, AbsP, RelVx, RelVy, RelT, RelP)
+                    @parallel getResVisc!(Errη, η_v, η_new, η_dif_new, η_dis_new, η_LTP_new, η_reg)
                     mean_ResVx       = mean(ErrVx)
                     mean_ResVy       = mean(ErrVy)
                     mean_ResT        = mean(ErrT)
                     mean_ResP        = mean(ErrP)
                     mean_ResEps      = mean(abs.(εII_dis .- εII_dis_g) ./ εII)
-                    err              = max(mean_ResVx, mean_ResVy, mean_ResT, mean_ResP, mean_ResEps)
+                    mean_ResVisc     = mean(Errη) * tol / Vtol
+                    err              = max(mean_ResVx, mean_ResVy, mean_ResT, mean_ResP, mean_ResEps, mean_ResVisc)
                     push!(ErrVx_evo, mean_ResVx)
                     push!(ErrVy_evo, mean_ResVy) 
                     push!(ErrT_evo,  mean_ResT)
                     push!(ErrP_evo,  mean_ResP)
+                    push!(Errη_evo,  mean_ResVisc)
                     push!(err_evo, err)
                     push!(its_evo, iter)
-                    @printf("Its = %d, err = %1.3e [mean_ResVx=%1.3e, mean_ResVy=%1.3e, mean_dT=%1.3e, mean_dP=%1.3e, mean_Resε=%1.3e] \n", iter, err, mean_ResVx, mean_ResVy, mean_ResT, mean_ResP, mean_ResEps)
+                    @printf("Its = %d, err = %1.3e [mean_ResVx=%1.3e, mean_ResVy=%1.3e, mean_dT=%1.3e, mean_dP=%1.3e, mean_Resε=%1.3e, mean_Resη=%1.3e] \n", iter, err, mean_ResVx, mean_ResVy, mean_ResT, mean_ResP, mean_ResEps, mean_ResVisc)
                     nanFlag          = isnan(err) || isinf(err)
                     tol, nRaise      = raiseTol2(tol, nRaise, iter)
-                    ReFlag, ConvFlag = checkError(err_evo, nout, ReFlag, iter, nt_min)
+                    ReFlag, ConvFlag = checkError(err_evo, nout, ReFlag, iter)
                     #dampVx, dampVy, dampT, VdmpX, VdmpY, Tdmp, dampReset, tol, ndampRe = AdjustDamp(dampVx, dampVy, dampT, VdmpX, VdmpY, Tdmp, VdmpX0, VdmpY0, nx, ny, err_evo, dampReset, tol, ndampRe, dampFlag)
                 end
             end
@@ -424,7 +427,7 @@ include("Modules/Support_Rheology.jl")
         if (plotFlag && mod(iter_dt, 1) == 0)
             @parallel ε_ela!(εII_ela, τII, τII_o, η_e)
             @parallel (1:nx, 1:ny) domMech!(dom, εII_ela, εII_dif, εII_dis, εII_LTP)
-            SH_2D_plot(xn, yn, xc, yc, dt, Vx, Vy, T, P, τII, t_evo, CD, iter_dt, its_evo, ErrVx_evo, ErrVy_evo, ErrT_evo, ErrP_evo, dom, outDirName)
+            SH_2D_plot(xn, yn, xc, yc, dt, Vx, Vy, T, P, τII, t_evo, CD, iter_dt, its_evo, ErrVx_evo, ErrVy_evo, ErrT_evo, ErrP_evo, Errη_evo, dom, outDirName)
         end
 
         # save full fields
@@ -762,7 +765,7 @@ end
     return  
 end
 
-function checkError(err, nout, ReFlag, iter, nt_min)
+function checkError(err, nout, ReFlag, iter)
     if ReFlag == true
         return true, false
     end
@@ -778,17 +781,6 @@ function checkError(err, nout, ReFlag, iter, nt_min)
             end
         end
         if isOK
-            @printf("Iter: %d, Converged because of asymptotic convergence. \n", iter)
-            return false, true
-        end
-    end
-
-    # converged based on stall, including up and down
-    n = max(Int64(round(5000 / nout)), 5)
-    if length(err) > n && err[end] < 1e-3
-        vals = err[end-n:end]
-        expo = log10.(vals)
-        if std(expo) < 0.1
             @printf("Iter: %d, Converged because of stalling residual. \n", iter)
             return false, true
         end
@@ -818,6 +810,12 @@ end
     @all(ErrVy) = min(@all(AbsVy), @all(RelVy));
     @all(ErrT)  = min(@all(AbsT),  @all(RelT));
     @all(ErrP)  = min(@all(AbsP),  @all(RelP));
+    return
+end
+
+@parallel function getResVisc!(Errη::Data.Array, η::Data.Array, η_new::Data.Array, η_dif_new::Data.Array, η_dis_new::Data.Array, η_LTP_new::Data.Array, η_reg::Number)
+    @all(η_new) = (1.0/@all(η_dif_new) + 1.0/@all(η_dis_new) + 1.0/@all(η_LTP_new)) ^ (-1.0) + η_reg
+    @all(Errη)  = abs.((@all(η) - @all(η_new)) / @all(η_new))
     return
 end
 
