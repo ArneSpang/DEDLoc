@@ -27,6 +27,7 @@ function ElaDisDifLTP_1D(epsVal, Gval, sigB, L, λval, Tbg, ωmax, hL, reg, reso
     nRestart    = 10        # save restart database every n steps
     restartFlag = false     # load restart database (bool)
     restartName = ""        # name of specific restart file
+    latH_Flag   = false     # flag to take latent heat into account
 
     # Setup
     maxStrain   = 1.0       # maximum strain (controls model time)
@@ -48,6 +49,7 @@ function ElaDisDifLTP_1D(epsVal, Gval, sigB, L, λval, Tbg, ωmax, hL, reg, reso
     nout        = 2e3       # output frequency
     η_rel       = 0.1       # viscosity relaxation parameter
     tol0        = 1e-6      # tolerance
+    F_rel       = 1e-4      # relaxation factor for melt fraction update
     
     # anomaly
     an_x        = 0.0km     # position of anomaly
@@ -81,6 +83,12 @@ function ElaDisDifLTP_1D(epsVal, Gval, sigB, L, λval, Tbg, ωmax, hL, reg, reso
     G           = Gval*1e9Pa    # shear modulus
     ν           = 0.25          # poisson ratio
     λ           = λval*J/s/m/K  # thermal conductivity
+
+    # melting
+    LatH        = 300e3J/kg     # latent heat of fusion
+    β1          = 1.5           # exponent for cpx melting
+    β2          = 1.5           # exponent for opx melting
+    Mcpx        = 0.16          # cpx content
 
 ##########################
 #### Input Processing ####
@@ -123,6 +131,7 @@ function ElaDisDifLTP_1D(epsVal, Gval, sigB, L, λval, Tbg, ωmax, hL, reg, reso
     gs0     = nondimensionalize(gs0,     CD)
     G       = nondimensionalize(G,       CD)
     λ       = nondimensionalize(λ,       CD)
+    LatH    = nondimensionalize(LatH,    CD)
 
     # derived properties
     xn      = uSpace(-Lx/2.0, Lx/2.0, nx)
@@ -136,6 +145,7 @@ function ElaDisDifLTP_1D(epsVal, Gval, sigB, L, λval, Tbg, ωmax, hL, reg, reso
     dampT   = 1.0-Tdmp0/nx
     dT_ref  = dT_ref0
     maxFac  = 5.0 * nondimensionalize(1e-12/s, CD) / ε
+    T_sol, T_liq_lherz, T_liq, F_cpx_out, T_cpx_out = get_dervied_melting_params(P0, β1, Mcpx, CD)
 
     # regularization
     if regType == 1
@@ -189,6 +199,7 @@ function ElaDisDifLTP_1D(epsVal, Gval, sigB, L, λval, Tbg, ωmax, hL, reg, reso
     H_dif     = zeros(nx)
     H_LTP     = zeros(nx)
     H_num     = zeros(nx)
+    H_lat     = zeros(nx)
     H         = zeros(nx)
     T         = zeros(nx)
     T_o       = zeros(nx)
@@ -199,6 +210,9 @@ function ElaDisDifLTP_1D(epsVal, Gval, sigB, L, λval, Tbg, ωmax, hL, reg, reso
     dT_diff   = zeros(nx)
     qx        = zeros(nx+1)
     P         = zeros(nx)
+    F         = zeros(nx)
+    F_o       = zeros(nx)
+    F_new     = zeros(nx)
 
     # initial guess and boundary conditions
     Vy     .= (xn .+ Lx/2) ./ Lx .* Vshear
@@ -277,6 +291,7 @@ function ElaDisDifLTP_1D(epsVal, Gval, sigB, L, λval, Tbg, ωmax, hL, reg, reso
     iter_evo   = [0]
     ResV_evo   = [0.0]
     ResT_evo   = [0.0]
+    F_evo      = [0.0]
     iter_dt    = 0
     VyProf_evo = [copy(Vy)]
     TProf_evo  = [copy(T)]
@@ -293,7 +308,7 @@ function ElaDisDifLTP_1D(epsVal, Gval, sigB, L, λval, Tbg, ωmax, hL, reg, reso
 
     # load restart
     if restartFlag
-        @load restartName CD Time iter_dt dt dT_ref Vy T T_o T ρ η η_vert η_e η_v η_dif η_dif_new η_dis η_dis_new η_LTP η_LTP_new τxy τxy_o τII τII_o εxy εII_nl εII_dis εII_dis_g εII_LTP_g nl_part H_dif H_dis H_LTP qx dT_diff ResVy ResT dψ dψT VyUp TUp Time_evo dt_evo τ_evo T_evo T2_evo Vy_evo η_evo η2_evo ηv_evo ηv2_evo H_evo H2_evo H_dif_evo H_dif2_evo H_dis_evo H_dis2_evo H_LTP_evo H_LTP2_evo ε_evo εv_evo iter_evo ResV_evo ResT_evo VyProf_evo TProf_evo
+        @load restartName CD Time iter_dt dt dT_ref Vy T T_o T ρ η η_vert η_e η_v η_dif η_dif_new η_dis η_dis_new η_LTP η_LTP_new τxy τxy_o τII τII_o εxy εII_nl εII_dis εII_dis_g εII_LTP_g nl_part H_dif H_dis H_LTP qx dT_diff F F_o ResVy ResT dψ dψT VyUp TUp Time_evo dt_evo τ_evo T_evo T2_evo Vy_evo η_evo η2_evo ηv_evo ηv2_evo H_evo H2_evo H_dif_evo H_dif2_evo H_dis_evo H_dis2_evo H_LTP_evo H_LTP2_evo ε_evo εv_evo iter_evo ResV_evo ResT_evo VyProf_evo TProf_evo
     end
 
     err_evo, errV_evo, errT_evo, its_evo = Array{Float64}(undef, 0), Array{Float64}(undef, 0), Array{Float64}(undef, 0), Array{Float64}(undef, 0) 
@@ -313,7 +328,7 @@ function ElaDisDifLTP_1D(epsVal, Gval, sigB, L, λval, Tbg, ωmax, hL, reg, reso
         # save info
         τII_oo = copy(τII_o); τxy_oo = copy(τxy_o); T_oo = copy(T_o); Vy_oo = copy(Vy_o);
         τII_o = copy(τII); τxy_o = copy(τxy); T_o = copy(T); Vy_o = copy(Vy); dt_o = copy(dt);
-        η_dif_o = copy(η_dif); η_dis_o = copy(η_dis); η_LTP_o = copy(η_LTP);
+        η_dif_o = copy(η_dif); η_dis_o = copy(η_dis); η_LTP_o = copy(η_LTP); F_o = copy(F);
 
 ##################################
 #### Initialize new time step ####
@@ -328,7 +343,7 @@ function ElaDisDifLTP_1D(epsVal, Gval, sigB, L, λval, Tbg, ωmax, hL, reg, reso
         # reset solution variables in case of restart
         if ReFlag
             τII = copy(τII_o); τxy = copy(τxy_o); T = copy(T_o); Vy = copy(Vy_o);
-            η_dif = copy(η_dif_o); η_dis = copy(η_dis_o); η_LTP = copy(η_LTP_o);
+            η_dif = copy(η_dif_o); η_dis = copy(η_dis_o); η_LTP = copy(η_LTP_o); F = copy(F_o);
         end
 
         # update timestep
@@ -352,7 +367,7 @@ function ElaDisDifLTP_1D(epsVal, Gval, sigB, L, λval, Tbg, ωmax, hL, reg, reso
 
         # check if scaling is still ok
         if dt < 1e-9
-            dt, dt_o, dt0, Time, t_end, Vy, T, T_o, T_oo, dT_ref, dT_ref0, P, τxy, τxy_o, ρ, η, η_e, η_v, η_vert, τII, τII_o, τII_oo, τII_reg, τII_vtrue, dτ_crit, εxy, εII, εII_v, εII_nl, εII_dif, εII_dis_g, εII_LTP_g, η_dif, η_dif_new, η_dis, η_dis_new, η_LTP, η_LTP_new, ρ_nodes, ρCp, κ, qx, dT_diff, H, R, gs, Adif, mdif, Qdif, Adis, ndis, Qdis, LTP_A, LTP_En, LTP_Σ, LTP_σb, G, Kb, λ, Cp, dxc, dxn, mindx, η_reg, η_max, λ_num2, CD_new = rescaleDimensions(10, dt, dt_o, dt0, Time, t_end, Vy, T, T_o, T_oo, dT_ref, dT_ref0, P, τxy, τxy_o, ρ, η, η_e, η_v, η_vert, τII, τII_o, τII_oo, τII_reg, τII_vtrue, dτ_crit, εxy, εII, εII_v, εII_nl, εII_dif, εII_dis_g, εII_LTP_g, η_dif, η_dif_new, η_dis, η_dis_new, η_LTP, η_LTP_new, ρ_nodes, ρCp, κ, qx, dT_diff, H, R, gs, Adif, mdif, Qdif, Adis, ndis, Qdis, LTP_A, LTP_En, LTP_Σ, LTP_σb, G, Kb, λ, Cp, dxc, dxn, mindx, η_reg, η_max, λ_num2, CD);
+            dt, dt_o, dt0, Time, t_end, Vy, T, T_o, T_oo, dT_ref, dT_ref0, P, τxy, τxy_o, ρ, η, η_e, η_v, η_vert, τII, τII_o, τII_oo, τII_reg, τII_vtrue, dτ_crit, εxy, εII, εII_v, εII_nl, εII_dif, εII_dis_g, εII_LTP_g, η_dif, η_dif_new, η_dis, η_dis_new, η_LTP, η_LTP_new, ρ_nodes, ρCp, κ, qx, dT_diff, H, R, gs, Adif, mdif, Qdif, Adis, ndis, Qdis, LTP_A, LTP_En, LTP_Σ, LTP_σb, G, Kb, λ, Cp, LatH, dxc, dxn, mindx, η_reg, η_max, λ_num2, CD_new = rescaleDimensions(10, dt, dt_o, dt0, Time, t_end, Vy, T, T_o, T_oo, dT_ref, dT_ref0, P, τxy, τxy_o, ρ, η, η_e, η_v, η_vert, τII, τII_o, τII_oo, τII_reg, τII_vtrue, dτ_crit, εxy, εII, εII_v, εII_nl, εII_dif, εII_dis_g, εII_LTP_g, η_dif, η_dif_new, η_dis, η_dis_new, η_LTP, η_LTP_new, ρ_nodes, ρCp, κ, qx, dT_diff, H, R, gs, Adif, mdif, Qdif, Adis, ndis, Qdis, LTP_A, LTP_En, LTP_Σ, LTP_σb, G, Kb, λ, Cp, LatH, dxc, dxn, mindx, η_reg, η_max, λ_num2, CD);
             Time_evo, dt_evo, τ_evo, T_evo, T2_evo, Vy_evo, VyProf_evo, TProf_evo, η_evo, η2_evo, ηv_evo, ηv2_evo, H_evo, H2_evo, H_dif_evo, H_dif2_evo, H_dis_evo, H_dis2_evo, H_LTP_evo, H_LTP2_evo, ε_evo, εv_evo = rescaleEvo(Time_evo, dt_evo, τ_evo, T_evo, T2_evo, Vy_evo, VyProf_evo, TProf_evo, η_evo, η2_evo, ηv_evo, ηv2_evo, H_evo, H2_evo, H_dif_evo, H_dif2_evo, H_dis_evo, H_dis2_evo, H_LTP_evo, H_LTP2_evo, ε_evo, εv_evo, CD, CD_new);
             CD = CD_new
             @printf("########\n Changed scaling\n########\n")
@@ -450,9 +465,16 @@ function ElaDisDifLTP_1D(epsVal, Gval, sigB, L, λval, Tbg, ωmax, hL, reg, reso
             qx[2:end-1]      .= - λ .* diff(T) ./ dxc
             dT_diff          .= - diff(qx) ./ dxn .* diffFlag
 
+            # latent heat
+            if latH_Flag
+                newMeltFraction!(F_new, T, T_sol, T_liq_lherz, F_cpx_out, T_cpx_out, T_liq, β1, β2)
+                F            .= F .* (1.0 - F_rel) + F_new .* F_rel
+                H_lat        .= (F_o .- F)./dt .* ρ .* LatH
+            end
+
             # residuals
             ResVy            .= diff(τxy) ./ dxc
-            ResT             .= (dT_diff .+ H .+ H_num) ./ ρCp .- (T .- T_o) ./ dt
+            ResT             .= (dT_diff .+ H .+ H_num .+ H_lat) ./ ρCp .- (T .- T_o) ./ dt
 
             # new pseudo step
             dψ               .= dxc.^2 ./ η_vert ./ 2.1 ./ 1.2
@@ -509,17 +531,17 @@ function ElaDisDifLTP_1D(epsVal, Gval, sigB, L, λval, Tbg, ωmax, hL, reg, reso
         @printf("Its = %d, err = %1.3e [mean_ResVy=%1.3e, mean_dT=%1.3e, mean_Resε=%1.3e, mean_Resε2=%1.3e] \n", iter, err, mean_ResVy, mean_ResT, mean_ResEps, mean_ResEps2)
         # tracking
         Time   += dt
-        trackStuff!(err_evo, errV_evo, errT_evo, its_evo, Time_evo, dt_evo, τ_evo, T_evo, T2_evo, Vy_evo, VyProf_evo, TProf_evo, η_evo, η2_evo, ηv_evo, ηv2_evo, H_evo, H2_evo, H_dif_evo, H_dif2_evo, H_dis_evo, H_dis2_evo, H_LTP_evo, H_LTP2_evo, ε_evo, εv_evo, iter_evo, ResV_evo, ResT_evo, err, iter, Time, τxy, T, Vy, η, η_v, H, H_dif, H_dis, H_LTP, εxy, εII_v, nx, mean_ResVy, mean_ResT, dt, T_o)
+        trackStuff!(err_evo, errV_evo, errT_evo, its_evo, Time_evo, dt_evo, τ_evo, T_evo, T2_evo, Vy_evo, VyProf_evo, TProf_evo, η_evo, η2_evo, ηv_evo, ηv2_evo, H_evo, H2_evo, H_dif_evo, H_dif2_evo, H_dis_evo, H_dis2_evo, H_LTP_evo, H_LTP2_evo, ε_evo, εv_evo, F_evo, iter_evo, ResV_evo, ResT_evo, err, iter, Time, τxy, T, Vy, η, η_v, H, H_dif, H_dis, H_LTP, εxy, εII_v, F, nx, mean_ResVy, mean_ResT, dt, T_o)
 
         # plot
         if plotFlag || Time > 0.9*t_end
-            SH_1D_plot(xn, xc, Vy, its_evo, errV_evo, errT_evo, T, η_e, η_dif, η_dis, η_LTP, CD, iter_dt, Time_evo, dt, τ_evo, T_evo, plotFlag, saveFlag, saveName)
+            SH_1D_plot(xn, xc, Vy, its_evo, errV_evo, errT_evo, T, η_e, η_dif, η_dis, η_LTP, F, CD, iter_dt, Time_evo, dt, τ_evo, T_evo, plotFlag, saveFlag, latH_Flag, saveName)
         end
 
         # save
         if saveFlag && !nanFlag
         jldsave(saveName*".jld2", xc=xc, xn=xn, t=Time_evo, dt=dt_evo, τ_mean=τ_evo, T_max=T_evo, T_mean=T2_evo, Vy_max=Vy_evo, Vy_prof=VyProf_evo, η_min=η_evo, η_mean=η2_evo, ηv_min=ηv_evo, ηv_mean=ηv2_evo, 
-                                  H_max=H_evo, H_mean=H2_evo, H_dif_max=H_dif_evo, H_dif_mean=H_dif2_evo, H_dis_max=H_dis_evo, H_dis_mean=H_dis2_evo, H_LTP_max=H_LTP_evo, H_LTP_mean=H_LTP2_evo, ε_cen=ε_evo, εv_cen=εv_evo, iter=iter_evo, ResV=ResV_evo, ResT=ResT_evo, CD=CD)
+                                  H_max=H_evo, H_mean=H2_evo, H_dif_max=H_dif_evo, H_dif_mean=H_dif2_evo, H_dis_max=H_dis_evo, H_dis_mean=H_dis2_evo, H_LTP_max=H_LTP_evo, H_LTP_mean=H_LTP2_evo, ε_cen=ε_evo, εv_cen=εv_evo, F_max = F_evo, iter=iter_evo, ResV=ResV_evo, ResT=ResT_evo, CD=CD)
         end
 
         # save restart database
@@ -529,11 +551,11 @@ function ElaDisDifLTP_1D(epsVal, Gval, sigB, L, λval, Tbg, ωmax, hL, reg, reso
                     Vy, T, T_o, P, ρ, 
                     η, η_vert, η_e, η_v, η_dif, η_dif_new, η_dis, η_dis_new, η_LTP, η_LTP_new,
                     τxy, τxy_o, τII, τII_o, εxy, εII_nl, εII_dis, εII_dis_g, εII_LTP_g, nl_part,
-                    H_dif, H_dis, H_LTP, qx, dT_diff, 
+                    H_dif, H_dis, H_LTP, qx, dT_diff, F, F_o,
                     ResVy, ResT, dψ, dψT, VyUp, TUp,
                     Time_evo, dt_evo, τ_evo, T_evo, T2_evo, Vy_evo, 
                     η_evo, η2_evo, ηv_evo, ηv2_evo, H_evo, H2_evo, 
-                    H_dif_evo, H_dif2_evo, H_dis_evo, H_dis2_evo, H_LTP_evo, H_LTP2_evo, ε_evo, εv_evo,
+                    H_dif_evo, H_dif2_evo, H_dis_evo, H_dis2_evo, H_LTP_evo, H_LTP2_evo, ε_evo, εv_evo, F_evo,
                     iter_evo, ResV_evo, ResT_evo, VyProf_evo, TProf_evo);
             @printf("Saved restart database.\n")
         end
@@ -566,7 +588,7 @@ function updateTimestep(dt, dt0, T, T_o, dT_ref, τxy, τxy_o, dτ_crit, ReFlag,
     return dt_new
 end
 
-function trackStuff!(err_evo, errV_evo, errT_evo, its_evo, Time_evo, dt_evo, τ_evo, T_evo, T2_evo, Vy_evo, VyProf_evo, TProf_evo, η_evo, η2_evo, ηv_evo, ηv2_evo, H_evo, H2_evo, H_dif_evo, H_dif2_evo, H_dis_evo, H_dis2_evo, H_LTP_evo, H_LTP2_evo, ε_evo, εv_evo, iter_evo, ResV_evo, ResT_evo, err, iter, Time, τxy, T, Vy, η, η_v, H, H_dif, H_dis, H_LTP, εxy, εII_v, nx, mean_ResVy, mean_ResT, dt, T_o)
+function trackStuff!(err_evo, errV_evo, errT_evo, its_evo, Time_evo, dt_evo, τ_evo, T_evo, T2_evo, Vy_evo, VyProf_evo, TProf_evo, η_evo, η2_evo, ηv_evo, ηv2_evo, H_evo, H2_evo, H_dif_evo, H_dif2_evo, H_dis_evo, H_dis2_evo, H_LTP_evo, H_LTP2_evo, ε_evo, εv_evo, F_evo, iter_evo, ResV_evo, ResT_evo, err, iter, Time, τxy, T, Vy, η, η_v, H, H_dif, H_dis, H_LTP, εxy, εII_v, F, nx, mean_ResVy, mean_ResT, dt, T_o)
     push!(err_evo,    err)
     push!(errV_evo,   mean_ResVy)
     push!(errT_evo,   mean_ResT)
@@ -593,6 +615,7 @@ function trackStuff!(err_evo, errV_evo, errT_evo, its_evo, Time_evo, dt_evo, τ_
     push!(H_LTP2_evo, mean(H_LTP))
     push!(ε_evo,      εxy[Int(round(nx/2))])
     push!(εv_evo,     εII_v[Int(round(nx/2))])
+    push!(F_evo,      maximum(F))
     push!(iter_evo,   iter)
     push!(ResV_evo,   mean_ResVy)
     push!(ResT_evo,   mean_ResT)
@@ -638,7 +661,7 @@ function raiseTol(tol, nRe)
     end
 end
 
-function SH_1D_plot(xn, xc, Vy, its_evo, errV_evo, errT_evo, T, η_e, η_dif, η_dis, η_LTP, CD, step, time_evo, dt, τ_evo, T_evo, plotFlag, saveFlag, saveName)
+function SH_1D_plot(xn, xc, Vy, its_evo, errV_evo, errT_evo, T, η_e, η_dif, η_dis, η_LTP, F, CD, step, time_evo, dt, τ_evo, T_evo, plotFlag, saveFlag, latH_Flag, saveName)
     # redimensionalize
     xn_p    = dimensionalize(xn,       km,      CD)
     xc_p    = dimensionalize(xc,       km,      CD)
@@ -678,7 +701,14 @@ function SH_1D_plot(xn, xc, Vy, its_evo, errV_evo, errT_evo, T, η_e, η_dif, η
     plot!(p6,         η_dif_p,     xc_p,    label="Dif")
     plot!(p6,         η_dis_p,     xc_p,    label="Dis")
     plot!(p6,         η_LTP_p,     xc_p,    label="LTP")
-    pn         = plot(p1, p2, p3, p4, p5, p6, layout=(2,3));
+    p7         = plot(F,           xc_p,    xlabel="Melt frac.",ylabel="x",        legend=:none, tickfontsize = 6)
+    
+    if latH_Flag
+        pn         = plot(p1, p2, p7, p4, p5, p6, layout=(2,3));
+    else
+        pn         = plot(p1, p2, p3, p4, p5, p6, layout=(2,3));
+    end
+
     if plotFlag 
         display(pn)
     end
@@ -767,7 +797,7 @@ function findTol(dt, tol0)
     return tol0 * 10 ^ (-2 / (1 + exp(-2 * (log10(dt) - 1))) + 2)
 end
 
-function rescaleDimensions(fac, dt, dt_o, dt0, Time, t_end, Vy, T, T_o, T_oo, dT_ref, dT_ref0, P, τxy, τxy_o, ρ, η, η_e, η_v, η_vert, τII, τII_o, τII_oo, τII_reg, τII_vtrue, dτ_crit, εxy, εII, εII_v, εII_nl, εII_dif, εII_dis_g, εII_LTP_g, η_dif, η_dif_new, η_dis, η_dis_new, η_LTP, η_LTP_new, ρ_nodes, ρCp, κ, qx, dT_diff, H, R, gs, Adif, mdif, Qdif, Adis, ndis, Qdis, LTP_A, LTP_En, LTP_Σ, LTP_σb, G, Kb, λ, Cp, dxc, dxn, mindx, η_reg, η_max, λ_num2, CD)
+function rescaleDimensions(fac, dt, dt_o, dt0, Time, t_end, Vy, T, T_o, T_oo, dT_ref, dT_ref0, P, τxy, τxy_o, ρ, η, η_e, η_v, η_vert, τII, τII_o, τII_oo, τII_reg, τII_vtrue, dτ_crit, εxy, εII, εII_v, εII_nl, εII_dif, εII_dis_g, εII_LTP_g, η_dif, η_dif_new, η_dis, η_dis_new, η_LTP, η_LTP_new, ρ_nodes, ρCp, κ, qx, dT_diff, H, R, gs, Adif, mdif, Qdif, Adis, ndis, Qdis, LTP_A, LTP_En, LTP_Σ, LTP_σb, G, Kb, λ, Cp, LatH, dxc, dxn, mindx, η_reg, η_max, λ_num2, CD)
     dt          = dimensionalize(dt,          s,                   CD)
     dt_o        = dimensionalize(dt_o,        s,                   CD)
     dt0         = dimensionalize(dt0,         s,                   CD)
@@ -826,6 +856,7 @@ function rescaleDimensions(fac, dt, dt_o, dt0, Time, t_end, Vy, T, T_o, T_oo, dT
     Kb          = dimensionalize(Kb,          Pa,                  CD)
     λ           = dimensionalize(λ,           J/(s*m*K),           CD)
     Cp          = dimensionalize(Cp,          J/(kg*K),            CD)
+    LatH        = dimensionalize(LatH,        J/kg,                CD)
     dxc         = dimensionalize(dxc,         m,                   CD)
     dxn         = dimensionalize(dxn,         m,                   CD)
     mindx       = dimensionalize(mindx,       m,                   CD)
@@ -893,6 +924,7 @@ function rescaleDimensions(fac, dt, dt_o, dt0, Time, t_end, Vy, T, T_o, T_oo, dT
     Kb          = nondimensionalize(Kb,        CD2)
     λ           = nondimensionalize(λ,         CD2)
     Cp          = nondimensionalize(Cp,        CD2)
+    LatH        = nondimensionalize(LatH,      CD2)
     dxc         = nondimensionalize(dxc,       CD2)
     dxn         = nondimensionalize(dxn,       CD2)
     mindx       = nondimensionalize(mindx,     CD2)
@@ -900,7 +932,7 @@ function rescaleDimensions(fac, dt, dt_o, dt0, Time, t_end, Vy, T, T_o, T_oo, dT
     η_max       = nondimensionalize(η_max,     CD2)
     λ_num2      = nondimensionalize(λ_num2,    CD2)
 
-    return dt, dt_o, dt0, Time, t_end, Vy, T, T_o, T_oo, dT_ref, dT_ref0, P, τxy, τxy_o, ρ, η, η_e, η_v, η_vert, τII, τII_o, τII_oo, τII_reg, τII_vtrue, dτ_crit, εxy, εII, εII_v, εII_nl, εII_dif, εII_dis_g, εII_LTP_g, η_dif, η_dif_new, η_dis, η_dis_new, η_LTP, η_LTP_new, ρ_nodes, ρCp, κ, qx, dT_diff, H, R, gs, Adif, mdif, Qdif, Adis, ndis, Qdis, LTP_A, LTP_En, LTP_Σ, LTP_σb, G, Kb, λ, Cp, dxc, dxn, mindx, η_reg, η_max, λ_num2, CD2
+    return dt, dt_o, dt0, Time, t_end, Vy, T, T_o, T_oo, dT_ref, dT_ref0, P, τxy, τxy_o, ρ, η, η_e, η_v, η_vert, τII, τII_o, τII_oo, τII_reg, τII_vtrue, dτ_crit, εxy, εII, εII_v, εII_nl, εII_dif, εII_dis_g, εII_LTP_g, η_dif, η_dif_new, η_dis, η_dis_new, η_LTP, η_LTP_new, ρ_nodes, ρCp, κ, qx, dT_diff, H, R, gs, Adif, mdif, Qdif, Adis, ndis, Qdis, LTP_A, LTP_En, LTP_Σ, LTP_σb, G, Kb, λ, Cp, LatH, dxc, dxn, mindx, η_reg, η_max, λ_num2, CD2
 end
 
 function rescaleEvo(Time, dt, τ, T, T2, Vy, VyProf, TProf, η, η2, ηv, ηv2, H, H2, H_dif, H_dif2, H_dis, H_dis2, H_LTP, H_LTP2, ε, εv, CD, CD_new)
@@ -934,4 +966,48 @@ end
 function PDF(x, x0, FWHM, ymax) 
     σ = FWHM/(2*sqrt(2*log(2))) 
     return ymax * exp.(-0.5*((x .- x0)./σ).^2)
+end
+
+# get derived melting parameters
+function get_dervied_melting_params(P, β1, Mcpx, CD)
+    # parameters
+    A1     = nondimensionalize(1085.7C,      CD)
+    A2     = nondimensionalize(132.9K/GPa,   CD)
+    A3     = nondimensionalize(-5.1K/GPa^2,  CD)
+    B1     = nondimensionalize(1475C,        CD)
+    B2     = nondimensionalize(80K/GPa,      CD)
+    B3     = nondimensionalize(-3.2K/GPa^2,  CD)
+    C1     = nondimensionalize(1780C,        CD)
+    C2     = nondimensionalize(45K/GPa,      CD)
+    C3     = nondimensionalize(-2K/GPa^2,    CD)
+    r1     = 0.5
+    r2     = nondimensionalize(0.08/GPa,     CD)           
+
+    T_sol       = A1 + A2*P + A3*P^2
+    T_liq_lherz = B1 + B2*P + B3*P^2
+    T_liq       = C1 + C2*P + C3*P^2
+    R_cpx       = r1 + r2*P
+    F_cpx_out   = Mcpx / R_cpx
+    T_cpx_out   = T_sol + (T_liq_lherz - T_sol)*F_cpx_out^(1/β1)
+
+    return T_sol, T_liq_lherz, T_liq, F_cpx_out, T_cpx_out
+end
+
+function newMeltFraction!(F, T, T_sol, T_liq_lherz, F_cpx_out, T_cpx_out, T_liq, β1, β2)
+    # compute T'
+    T_prime = (T .- T_sol) ./ (T_liq_lherz - T_sol)
+
+    for i = eachindex(F)
+        if T_prime[i] < 0
+            F[i] = 0
+        else
+            F[i] = T_prime[i] ^ β1
+            if F[i] > F_cpx_out
+                F[i] = F_cpx_out + (1 - F_cpx_out) * ((T[i] - T_cpx_out) / (T_liq - T_cpx_out)) ^ β2
+            end
+            F[i] = min(F[i], 1.0)
+        end
+    end
+
+    return F
 end
