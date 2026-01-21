@@ -26,7 +26,7 @@ For [1D]: Spang, A., Thielmann, M., & Kiss, D. (2024). Rapid ductile strain loca
 
 For [2D]: Spang, A., Thielmann, M., de Montserrat, A., Duretz, T.. Transient propagation of ductile ruptures by thermal runaway. Journal of Geophysical Research: Solid Earth, 130, e2025JB031240. https://doi.org/10.1029/2025JB031240
 
-General citation for the [code]: Spang, A., Thielmann, M., Pranger, C., de Montserrat, A., & Räss, L. (2026). Overcoming the numerical challenges owing to rapid ductile localization with DEDLoc (version 1.0. 0). Geoscientific Model Development, 19(1), 369-388. https://doi.org/10.5194/gmd-19-369-2026
+General citation for the [code]: Spang, A., Thielmann, M., Pranger, C., de Montserrat, A., & Räss, L. (2026). Overcoming the numerical challenges owing to rapid ductile localization with DEDLoc (version 1.0.0). Geoscientific Model Development, 19(1), 369-388. https://doi.org/10.5194/gmd-19-369-2026
 
 [1D]: https://agupubs.onlinelibrary.wiley.com/doi/full/10.1029/2024JB028846
 [2D]: https://agupubs.onlinelibrary.wiley.com/doi/10.1029/2025JB031240
