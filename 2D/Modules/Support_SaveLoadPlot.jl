@@ -1,11 +1,11 @@
 # initialize vectors used for tracking
 function initEvo(T, τII, Vx, η_v, εII)
     return [0.0], Array{Float64}(undef, 0), [maximum(T)], [mean(T)], [maximum(τII)], [mean(τII)], [maximum(abs.(Vx))], [minimum(η_v)], [maximum(εII)], 
-           Array{Int64}(undef, 0), Array{Int64}(undef, 0), Array{Float64}(undef, 0), Array{Int64}(undef, 0), Array{Int64}(undef, 0)
+                  Array{Float64}(undef, 0), Array{Int64}(undef, 0), Array{Int64}(undef, 0), Array{Float64}(undef, 0), Array{Int64}(undef, 0), Array{Int64}(undef, 0)
 end
 
 # track properties for evolution file
-function trackProperties!(Time, t_evo, dt_evo, Tmax_evo, Tmean_evo, τmax_evo, τ_evo, Vxmax_evo, ηvmin_evo, εmax_evo, iter_evo, fiter_evo, res_evo, ltip_evo, rtip_evo, dt, T, τII, Vx, η_v, εII, H, iter, iter_re, err, nx)
+function trackProperties!(Time, t_evo, dt_evo, Tmax_evo, Tmean_evo, τmax_evo, τ_evo, Vxmax_evo, ηvmin_evo, εmax_evo, F_evo, iter_evo, fiter_evo, res_evo, ltip_evo, rtip_evo, dt, T, τII, Vx, η_v, εII, F, H, iter, iter_re, err, nx)
     Time   += dt
     n       = Int64(nx/2)
     push!(t_evo,     Time)
@@ -17,6 +17,7 @@ function trackProperties!(Time, t_evo, dt_evo, Tmax_evo, Tmean_evo, τmax_evo, �
     push!(Vxmax_evo, maximum(abs.(Vx)))
     push!(ηvmin_evo, minimum(η_v))
     push!(εmax_evo,  maximum(εII))
+    push!(F_evo,     maximum(F))
     push!(iter_evo,  iter)
     push!(fiter_evo, iter + iter_re)
     push!(res_evo,   err)
@@ -28,7 +29,7 @@ end
 
 
 # save evolution file
-function saveEvo(saveFlag, nanFlag, t_evo, dt_evo, Tmax_evo, Tmean_evo, τmax_evo, τ_evo, Vxmax_evo, ηvmin_evo, εmax_evo, iter_evo, fiter_evo, res_evo, ltip_evo, rtip_evo, CD, saveName, xc, ind_cen)
+function saveEvo(saveFlag, nanFlag, t_evo, dt_evo, Tmax_evo, Tmean_evo, τmax_evo, τ_evo, Vxmax_evo, ηvmin_evo, εmax_evo, F_evo, iter_evo, fiter_evo, res_evo, ltip_evo, rtip_evo, CD, saveName, xc, ind_cen)
     if saveFlag && !nanFlag
         t_evo_s      = ustrip(dimensionalize(t_evo,       yr,    CD))
         dt_evo_s     = ustrip(dimensionalize(dt_evo,      s,     CD))
@@ -40,13 +41,13 @@ function saveEvo(saveFlag, nanFlag, t_evo, dt_evo, Tmax_evo, Tmean_evo, τmax_ev
         ηvmin_evo_s  = ustrip(dimensionalize(ηvmin_evo,   Pas,   CD))
         εmax_evo_s   = ustrip(dimensionalize(εmax_evo,    s^-1,  CD))
         
-        jldsave(saveName*".jld2", x_vec=xc[:,ind_cen], t=t_evo_s, dt=dt_evo_s, T_max=Tmax_evo_s, T_mean=Tmean_evo_s, τ_max=τmax_evo_s, τ_mean=τ_evo_s, Vx_max=Vxmax_evo_s, ηv_min=ηvmin_evo_s, ε_max=εmax_evo_s, iter=iter_evo, iterA=fiter_evo, err=res_evo, ltip=ltip_evo, rtip=rtip_evo)
+        jldsave(saveName*".jld2", x_vec=xc[:,ind_cen], t=t_evo_s, dt=dt_evo_s, T_max=Tmax_evo_s, T_mean=Tmean_evo_s, τ_max=τmax_evo_s, τ_mean=τ_evo_s, Vx_max=Vxmax_evo_s, ηv_min=ηvmin_evo_s, ε_max=εmax_evo_s, F_max=F_evo, iter=iter_evo, iterA=fiter_evo, err=res_evo, ltip=ltip_evo, rtip=rtip_evo)
     end
     return nothing
 end
 
 # save a selection of full fields
-function saveFullField(saveAllFlag, nout, saveName, iter_dt, Time, τII, εII, Vx, Vy, η_v, T, P, ρ, H, H_dif, H_dis, H_LTP, CD)
+function saveFullField(saveAllFlag, nout, saveName, iter_dt, Time, τII, εII, Vx, Vy, η_v, T, P, ρ, H, H_dif, H_dis, H_LTP, F, CD)
     if (saveAllFlag && mod(iter_dt, nout) == 0)
         jldsave(saveName*@sprintf("_%04d", iter_dt)*".jld2", 
                 t     = ustrip(dimensionalize(Time,         yr,     CD)), 
@@ -61,23 +62,24 @@ function saveFullField(saveAllFlag, nout, saveName, iter_dt, Time, τII, εII, V
                 H     = ustrip(dimensionalize(Array(H),     Pa/s,   CD)),
                 H_dif = ustrip(dimensionalize(Array(H_dif), Pa/s,   CD)), 
                 H_dis = ustrip(dimensionalize(Array(H_dis), Pa/s,   CD)),
-                H_LTP = ustrip(dimensionalize(Array(H_LTP), Pa/s,   CD)))
+                H_LTP = ustrip(dimensionalize(Array(H_LTP), Pa/s,   CD)),
+                F     = Array(F))
     end
     return nothing
 end
 
 # save a restart database
-function saveRestart(iter_dt, nRestart, nanFlag, saveName, Time, dt, Vx, Vy, T, T_o, P, P_o, ρ, η, η_dif, η_dis, η_LTP, τxx, τyy, τxy, τII, τII_o, VxUp, VyUp, PUp, TUp, err_evo, its_evo, t_evo, dt_evo, Tmax_evo, Tmean_evo, τmax_evo, τ_evo, Vxmax_evo, ηvmin_evo, εmax_evo, iter_evo, fiter_evo, res_evo, ltip_evo, rtip_evo, CD)
+function saveRestart(iter_dt, nRestart, nanFlag, saveName, Time, dt, Vx, Vy, T, T_o, P, P_o, ρ, η, η_dif, η_dis, η_LTP, F, τxx, τyy, τxy, τII, τII_o, VxUp, VyUp, PUp, TUp, err_evo, its_evo, t_evo, dt_evo, Tmax_evo, Tmean_evo, τmax_evo, τ_evo, Vxmax_evo, ηvmin_evo, εmax_evo, F_evo, iter_evo, fiter_evo, res_evo, ltip_evo, rtip_evo, CD)
     if mod(iter_dt, nRestart) == 0 && !nanFlag
         jldsave(saveName*"_restart.jld2";
                 Time = Time, iter_dt = iter_dt, dt = dt,
                 Vx = Array(Vx), Vy = Array(Vy),
                 T = Array(T), T_o = Array(T_o), P = Array(P), P_o = Array(P_o), ρ = Array(ρ),
-                η = Array(η), η_dif = Array(η_dif), η_dis = Array(η_dis), η_LTP = Array(η_LTP), 
+                η = Array(η), η_dif = Array(η_dif), η_dis = Array(η_dis), η_LTP = Array(η_LTP), F = Array(F), 
                 τxx = Array(τxx), τyy = Array(τyy), τxy = Array(τxy), τII = Array(τII), τII_o = Array(τII_o), 
                 VxUp = Array(VxUp), VyUp = Array(VyUp), PUp = Array(PUp), TUp = Array(TUp),
                 err_evo = err_evo, its_evo = its_evo, t_evo = t_evo, dt_evo = dt_evo, Tmax_evo = Tmax_evo, Tmean_evo = Tmean_evo, 
-                τmax_evo = τmax_evo, τ_evo = τ_evo, Vxmax_evo = Vxmax_evo, ηvmin_evo = ηvmin_evo, εmax_evo = εmax_evo, 
+                τmax_evo = τmax_evo, τ_evo = τ_evo, Vxmax_evo = Vxmax_evo, ηvmin_evo = ηvmin_evo, εmax_evo = εmax_evo, F_evo = F_evo, 
                 iter_evo = iter_evo, fiter_evo = fiter_evo, res_evo = res_evo, ltip_evo = ltip_evo, rtip_evo = rtip_evo, CD = CD)
         @printf("Saved restart database.\n")
     end
@@ -86,15 +88,15 @@ end
 
 # load a restart database and return everything as Cuda Arrays
 function loadRestart(name)
-    @load name Time iter_dt dt  Vx Vy T T_o P P_o ρ η η_dif η_dis η_LTP τxx τyy τxy τII τII_o VxUp VyUp PUp TUp err_evo dt_evo its_evo t_evo Tmax_evo Tmean_evo τmax_evo τ_evo Vxmax_evo ηvmin_evo εmax_evo iter_evo fiter_evo res_evo ltip_evo rtip_evo CD
+    @load name Time iter_dt dt Vx Vy T T_o P P_o ρ η η_dif η_dis η_LTP F τxx τyy τxy τII τII_o VxUp VyUp PUp TUp err_evo dt_evo its_evo t_evo Tmax_evo Tmean_evo τmax_evo τ_evo Vxmax_evo ηvmin_evo εmax_evo F_evo iter_evo fiter_evo res_evo ltip_evo rtip_evo CD
 
     return Time, iter_dt, dt, 
            Data.Array(Vx), Data.Array(Vy),
            Data.Array(T), Data.Array(T_o), Data.Array(P), Data.Array(P_o), Data.Array(ρ),
-           Data.Array(η), Data.Array(η_dif), Data.Array(η_dis), Data.Array(η_LTP),
+           Data.Array(η), Data.Array(η_dif), Data.Array(η_dis), Data.Array(η_LTP), Data.Array(F),
            Data.Array(τxx), Data.Array(τyy), Data.Array(τxy), Data.Array(τII), Data.Array(τII_o), 
            Data.Array(VxUp), Data.Array(VyUp), Data.Array(PUp), Data.Array(TUp),
-           err_evo, its_evo, t_evo, dt_evo, Tmax_evo, Tmean_evo, τmax_evo, τ_evo, Vxmax_evo, ηvmin_evo, εmax_evo, iter_evo, fiter_evo, res_evo, ltip_evo, rtip_evo, CD
+           err_evo, its_evo, t_evo, dt_evo, Tmax_evo, Tmean_evo, τmax_evo, τ_evo, Vxmax_evo, ηvmin_evo, εmax_evo, F_evo, iter_evo, fiter_evo, res_evo, ltip_evo, rtip_evo, CD
 end
 
 # checks which deformation mechanism is dominant

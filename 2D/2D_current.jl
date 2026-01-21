@@ -28,6 +28,7 @@ include("Modules/Support_Rheology.jl")
     heatFlag    = 1.0       # shear heating flag (Float)
     dampFlag    = 1.0       # dampening flag (Float)
     compFlag    = 1.0       # compressibility flag (Float)
+    latHFlag    = true      # latent heat flag (bool)
     plotFlag    = true      # plot flag (bool)
     saveFlag    = true      # save Flag (bool)
     saveName    = "AV1"
@@ -69,6 +70,7 @@ include("Modules/Support_Rheology.jl")
     nt          = 500e3     # maximum number of iterations
     nout        = 1e3       # output frequency
     η_rel       = 0.01      # viscosity relaxation
+    F_rel       = 1e-4      # melting relaxation
     CFL         = 0.5       # CFL-criterion
 
     # anomaly
@@ -126,7 +128,22 @@ include("Modules/Support_Rheology.jl")
     λ           = 3J/s/m/K             # thermal conductivity
     α           = 0e-5/K               # thermal expansivity
 
-
+    # melting
+    LatH        = 300e3J/kg            # latent heat of fusion
+    β1          = 1.5                  # exponent for cpx melting
+    β2          = 1.5                  # exponent for opx melting
+    Mcpx        = 0.16                 # cpx content
+    A1          = 1085.7C              # melting parameter
+    A2          = 132.9K/GPa           # melting parameter
+    A3          = -5.1K/GPa^2          # melting parameter
+    B1          = 1475C                # melting parameter
+    B2          = 80K/GPa              # melting parameter
+    B3          = -3.2K/GPa^2          # melting parameter
+    C1          = 1780C                # melting parameter
+    C2          = 45K/GPa              # melting parameter
+    C3          = -2K/GPa^2            # melting parameter
+    r1          = 0.5                  # melting parameter
+    r2          = 0.08/GPa             # melting parameter
 
 ##########################
 #### Input Processing ####
@@ -144,6 +161,7 @@ include("Modules/Support_Rheology.jl")
     # nondimensionalize
     CD, t_end, Lx, Ly, εbg, T0, T1, P0, dt0, gs0, dT_ref0, dτ_crit, rad_x, rad_y, x_off, y_off, restartName = nonDimInput(t_end, Lx, Ly, εbg, T0, T1, P0, dt0, gs0, dT_ref0, dτ_crit, rad_x, rad_y, x_off, y_off, restartName, restartFlag, saveName)
     η_reg, η_max, Adif, Edif, Vdif, Adis, Edis, Vdis, ALTP, ELTP, VLTP, LTP_σL, LTP_K, LTP_σb, βL, βb, P_Href, R, G0, ρ0, Cp, λ, α = nonDimMatParam(η_reg, η_max, Adif, Edif, Vdif, Adis, Edis, Vdis, ALTP, ELTP, VLTP, LTP_σL, LTP_K, LTP_σb, βL, βb, P_Href, R, G0, ρ0, Cp, λ, α, CD)
+    LatH, MP = nonDimMeltParam(LatH, A1, A2, A3, B1, B2, B3, C1, C2, C3, r2, CD, r1, β1, β2, Mcpx)
 
     # apply hardening to LTP
     if σL_hard && AV > 0 
@@ -184,10 +202,11 @@ include("Modules/Support_Rheology.jl")
     Vx_o, Vy_o, ∇V, ResVx, ResVy, dψVx, dψVy, VxUp, VyUp, Vx_cen, Vy_cen                                                                                               = preAllocVel(nx, ny)
     εxx, εyy, εxy, εxy_cen, εII, εII_v, εxx_f, εyy_f, εxy_f, εII_ela, εII_dif, εII_dis, εII_dis_g, εII_LTP, εII_LTP_g, εII_nl, εxx_elaOld, εyy_elaOld, εxy_elaOld, dom = preAllocEps(nx, ny)
     ResP, dψP, PUp, τxx, τyy, τxy, τxy_cen, τII, τII_reg, τII_vtrue, τxx_o, τyy_o, τxy_o, τII_o, τII_oo, τII_p, P_o, P_oo, P_p, ρ_o                                    = preAllocTau(nx, ny)
-    η_ml, η_dx, η_dy, η_nodes, η_e_nodes, η_dif_new, η_dis_new, η_LTP_new, η_o, η_dif_o, η_dis_o, η_LTP_o                                                              = preAllocEta(nx, ny)
+    η_ml, η_dx, η_dy, η_nodes, η_e_nodes, η_new, η_dif_new, η_dis_new, η_LTP_new, η_o, η_dif_o, η_dis_o, η_LTP_o, Errη                                                 = preAllocEta(nx, ny)
     H, H_dif, H_dis, H_LTP, H_reg, ResT, TUp, dT_diff, qx, qy, T_o, T_oo, T_p                                                                                          = preAllocTemp(nx, ny)
     AbsVx, AbsVy, RelVx, RelVy, ErrVx, ErrVy, AbsT, RelT, ErrT, AbsP, RelP, ErrP                                                                                       = preAllocErr(nx, ny)
     dt_CFL, Time, iter_dt, dt, dt_dim_s, dt_o, dψT, tol                                                                                                                = preAllocRest(nx, ny, dt0, tol0, CD)
+    H_lat, F, F_o, F_new, T_prime, T_sol, T_liq_lh, T_liq, F_cpx_out, T_cpx_out                                                                                        = preAllocMelt(nx, ny)
     
     # initial conditions
     ωI        =  ones(nx,   ny)
@@ -217,7 +236,7 @@ include("Modules/Support_Rheology.jl")
     η, η_v, η_e, η_dif, η_dis, η_LTP, ε_part, Pre_dif, Pre_dis = initalVisc(P0, T, εbg, gs0, R, AVFlag, dt0, G, Adif, mdif, Edif, Vdif, Adis, ndis, Edis, Vdis, ALTP, ELTP, VLTP, LTP_σL, LTP_K, LTP_σb, ωI, ωIb, FE, FT)
 
     # tracking
-    t_evo, dt_evo, Tmax_evo, Tmean_evo, τmax_evo, τ_evo, Vxmax_evo, ηvmin_evo, εmax_evo, iter_evo, fiter_evo, res_evo, ltip_evo, rtip_evo = initEvo(T, τII, Vx, η_v, εII)
+    t_evo, dt_evo, Tmax_evo, Tmean_evo, τmax_evo, τ_evo, Vxmax_evo, ηvmin_evo, εmax_evo, F_evo, iter_evo, fiter_evo, res_evo, ltip_evo, rtip_evo = initEvo(T, τII, Vx, η_v, εII)
 
     # convert to ParallelStencil arrays
     P, P_o, T, T_o, Vx, Vy                            = Sol2PS(P, T, Vx, Vy)
@@ -230,7 +249,7 @@ include("Modules/Support_Rheology.jl")
 
     # load
     if restartFlag
-        Time, iter_dt, dt, Vx, Vy, T, T_o, P, P_o, ρ, η, η_dif, η_dis, η_LTP, τxx, τyy, τxy, τII, τII_o, VxUp, VyUp, PUp, TUp, err_evo, its_evo, t_evo, dt_evo, Tmax_evo, Tmean_evo, τmax_evo, τ_evo, Vxmax_evo, ηvmin_evo, εmax_evo, iter_evo, fiter_evo, res_evo, ltip_evo, rtip_evo, CD = loadRestart(restartName)
+        Time, iter_dt, dt, Vx, Vy, T, T_o, P, P_o, ρ, η, η_dif, η_dis, η_LTP, F, τxx, τyy, τxy, τII, τII_o, VxUp, VyUp, PUp, TUp, err_evo, its_evo, t_evo, dt_evo, Tmax_evo, Tmean_evo, τmax_evo, τ_evo, Vxmax_evo, ηvmin_evo, εmax_evo, F_evo, iter_evo, fiter_evo, res_evo, ltip_evo, rtip_evo, CD = loadRestart(restartName)
     end
 
     # numerical stuff
@@ -251,8 +270,8 @@ include("Modules/Support_Rheology.jl")
         # save info
         dt_o  = copy(dt)
         @parallel save_oldold!(τII_o, T_o, P_o, τII_oo, T_oo, P_oo)
-        @parallel save_old!(τxx, τyy, τxy, τII, T, P, η, η_dif, η_dis, η_LTP, Vx, Vy, ρ, τxx_o, τyy_o, τxy_o, τII_o, T_o, P_o, η_o, η_dif_o, η_dis_o, η_LTP_o, Vx_o, Vy_o, ρ_o)
- 
+        @parallel save_old!(τxx, τyy, τxy, τII, T, P, η, η_dif, η_dis, η_LTP, Vx, Vy, ρ, F, τxx_o, τyy_o, τxy_o, τII_o, T_o, P_o, η_o, η_dif_o, η_dis_o, η_LTP_o, Vx_o, Vy_o, ρ_o, F_o)
+
 ##################################
 #### Initialize new time step ####
 ##################################
@@ -266,7 +285,7 @@ include("Modules/Support_Rheology.jl")
         while ReFlag || (err > tol && iter < nt && !ConvFlag)
             # reset solution variables in case of restart
             if ReFlag
-                @parallel resetVals!(τxx, τyy, τxy, τII, T, P, η, η_dif, η_dis, η_LTP, Vx, Vy, ρ, τxx_o, τyy_o, τxy_o, τII_o, T_o, P_o, η_o, η_dif_o, η_dis_o, η_LTP_o, Vx_o, Vy_o, ρ_o)
+                @parallel resetVals!(τxx, τyy, τxy, τII, T, P, η, η_dif, η_dis, η_LTP, Vx, Vy, ρ, F, τxx_o, τyy_o, τxy_o, τII_o, T_o, P_o, η_o, η_dif_o, η_dis_o, η_LTP_o, Vx_o, Vy_o, ρ_o, F_o)
                 iter_re += iter
             end
 
@@ -287,7 +306,7 @@ include("Modules/Support_Rheology.jl")
 
             # check if scaling is still ok
             if dt < 1e-8
-                CD_new, dt, dt_o, dt0, Time, t_end, VxTop, VxBot, VxLeft, VxRight, VyTop, VyBot, VyLeft, VyRight, V0, Pre_dif, Pre_dis, ALTP, λ, Cp, η_reg, η_max = rescaleTime!(dt, dt_o, dt0, Time, t_end, Vx, Vx_o, Vy, Vy_o, VxTop, VxBot, VxLeft, VxRight, VyTop, VyBot, VyLeft, VyRight, V0, ρ, ρ_o, η, η_o, η_e, η_v, η_ml, η_dif, η_dif_o, η_dif_new, η_dis, η_dis_o, η_dis_new, η_LTP, η_LTP_o, η_LTP_new, εxx, εyy, εxy, εxy_cen, εxx_f, εyy_f, εxy_f, εII, εII_v, εII_nl, εII_dif, εII_dis, εII_dis_g, εII_LTP, εII_LTP_g, εxx_elaOld, εyy_elaOld, εxy_elaOld, κ, qx, qy, dT_diff, H, Pre_dif, Pre_dis, ndis, ALTP, λ, Cp, η_reg, η_max, CD, 10.0)
+                CD_new, dt, dt_o, dt0, Time, t_end, VxTop, VxBot, VxLeft, VxRight, VyTop, VyBot, VyLeft, VyRight, V0, Pre_dif, Pre_dis, ALTP, λ, Cp, LatH, η_reg, η_max = rescaleTime!(dt, dt_o, dt0, Time, t_end, Vx, Vx_o, Vy, Vy_o, VxTop, VxBot, VxLeft, VxRight, VyTop, VyBot, VyLeft, VyRight, V0, ρ, ρ_o, η, η_o, η_e, η_v, η_ml, η_dif, η_dif_o, η_dif_new, η_dis, η_dis_o, η_dis_new, η_LTP, η_LTP_o, η_LTP_new, εxx, εyy, εxy, εxy_cen, εxx_f, εyy_f, εxy_f, εII, εII_v, εII_nl, εII_dif, εII_dis, εII_dis_g, εII_LTP, εII_LTP_g, εxx_elaOld, εyy_elaOld, εxy_elaOld, κ, qx, qy, dT_diff, H, Pre_dif, Pre_dis, ndis, ALTP, λ, Cp, LatH, η_reg, η_max, CD, 10.0)
                 rescaleEvoTime!(t_evo, dt_evo, Vxmax_evo, ηvmin_evo, εmax_evo, 10.0)
                 CD = CD_new
                 @printf("########\n Changed scaling\n########\n")
@@ -370,8 +389,11 @@ include("Modules/Support_Rheology.jl")
                 applyFluxBC!(qx, qy, bcType, nx, ny)
                 @parallel diffusion!(dT_diff, qx, qy, dxn, dyn, diffFlag)
 
+                # melting
+                if latHFlag; @parallel meltInOne!(H_lat, F, F_new, T_prime, T_sol, T_liq, T_liq_lh, T_cpx_out, F_cpx_out, F_o, T, P, ρ, LatH, dt, MP, F_rel); end
+
                 # residuals
-                @parallel residuals!(ResVx, ResVy, ResP, ResT, τxx, τyy, τxy, ∇V, P, P_o, T, T_o, Kb, dT_diff, H, ρCp, dxc, dyc, dxn_v, dyn_v, dt, α, compFlag)
+                @parallel residuals!(ResVx, ResVy, ResP, ResT, τxx, τyy, τxy, ∇V, P, P_o, T, T_o, Kb, dT_diff, H, H_lat, ρCp, dxc, dyc, dxn_v, dyn_v, dt, α, compFlag)
 
                 # new pseudo step
                 @parallel new_step!(dψVx, dψVy, dψP, η_ml, η_dx, η_dy, G, Kb, dxc, dyc, max_Lxy, min_dxy, Vfac, max_n)
@@ -421,7 +443,7 @@ include("Modules/Support_Rheology.jl")
 
         # tracking
         @parallel diss_energy_full!(εII_dif, εII_dis, εII_LTP, εII_v, H, H_dif, H_dis, H_LTP, H_reg, τII_vtrue, τII_reg, τxx, τyy, τxy_cen, εxx, εyy, εxy_cen, η_e, heatFlag, elaFlag)
-        Time = trackProperties!(Time, t_evo, dt_evo, Tmax_evo, Tmean_evo, τmax_evo, τ_evo, Vxmax_evo, ηvmin_evo, εmax_evo, iter_evo, fiter_evo, res_evo, ltip_evo, rtip_evo, dt, T, τII, Vx, η_v, εII, H, iter, iter_re, err, nx)
+        Time = trackProperties!(Time, t_evo, dt_evo, Tmax_evo, Tmean_evo, τmax_evo, τ_evo, Vxmax_evo, ηvmin_evo, εmax_evo, F_evo, iter_evo, fiter_evo, res_evo, ltip_evo, rtip_evo, dt, T, τII, Vx, η_v, εII, F, H, iter, iter_re, err, nx)
 
         # plotting
         if (plotFlag && mod(iter_dt, 1) == 0)
@@ -431,13 +453,13 @@ include("Modules/Support_Rheology.jl")
         end
 
         # save full fields
-        saveFullField(saveAllFlag, saveAllOut, saveName, iter_dt, Time, τII, εII, Vx, Vy, η_v, T, P, ρ, H, H_dif, H_dis, H_LTP, CD)
+        saveFullField(saveAllFlag, saveAllOut, saveName, iter_dt, Time, τII, εII, Vx, Vy, η_v, T, P, ρ, H, H_dif, H_dis, H_LTP, F, CD)
 
         # save evolution
-        saveEvo(saveFlag, nanFlag, t_evo, dt_evo, Tmax_evo, Tmean_evo, τmax_evo, τ_evo, Vxmax_evo, ηvmin_evo, εmax_evo, iter_evo, fiter_evo, res_evo, ltip_evo, rtip_evo, CD, saveName, xc, ind_cen)
+        saveEvo(saveFlag, nanFlag, t_evo, dt_evo, Tmax_evo, Tmean_evo, τmax_evo, τ_evo, Vxmax_evo, ηvmin_evo, εmax_evo, F_evo, iter_evo, fiter_evo, res_evo, ltip_evo, rtip_evo, CD, saveName, xc, ind_cen)
 
         # save restart database
-        saveRestart(iter_dt, nRestart, nanFlag, saveName, Time, dt, Vx, Vy, T, T_o, P, P_o, ρ, η, η_dif, η_dis, η_LTP, τxx, τyy, τxy, τII, τII_o, VxUp, VyUp, PUp, TUp, err_evo, its_evo, t_evo, dt_evo, Tmax_evo, Tmean_evo, τmax_evo, τ_evo, Vxmax_evo, ηvmin_evo, εmax_evo, iter_evo, fiter_evo, res_evo, ltip_evo, rtip_evo, CD)
+        saveRestart(iter_dt, nRestart, nanFlag, saveName, Time, dt, Vx, Vy, T, T_o, P, P_o, ρ, η, η_dif, η_dis, η_LTP, F, τxx, τyy, τxy, τII, τII_o, VxUp, VyUp, PUp, TUp, err_evo, its_evo, t_evo, dt_evo, Tmax_evo, Tmean_evo, τmax_evo, τ_evo, Vxmax_evo, ηvmin_evo, εmax_evo, F_evo, iter_evo, fiter_evo, res_evo, ltip_evo, rtip_evo, CD)
     end
 end
 
@@ -571,6 +593,7 @@ function preAllocEta(nx, ny)
     η_dy      = @zeros(nx,   ny-1)
     η_nodes   = @zeros(nx+1, ny+1)
     η_e_nodes = @zeros(nx+1, ny+1)
+    η_new     = @zeros(nx,   ny)
     η_dif_new = @zeros(nx,   ny)
     η_dis_new = @zeros(nx,   ny)    
     η_LTP_new = @zeros(nx,   ny)
@@ -578,7 +601,8 @@ function preAllocEta(nx, ny)
     η_dif_o   = @zeros(nx,   ny)
     η_dis_o   = @zeros(nx,   ny)
     η_LTP_o   = @zeros(nx,   ny)
-    return η_ml, η_dx, η_dy, η_nodes, η_e_nodes, η_dif_new, η_dis_new, η_LTP_new, η_o, η_dif_o, η_dis_o, η_LTP_o
+    Errη      = @zeros(nx,   ny)
+    return η_ml, η_dx, η_dy, η_nodes, η_e_nodes, η_new, η_dif_new, η_dis_new, η_LTP_new, η_o, η_dif_o, η_dis_o, η_LTP_o, Errη
 end
 
 function preAllocTemp(nx, ny)
@@ -612,6 +636,21 @@ function preAllocErr(nx, ny)
     RelP      = @zeros(nx,   ny)
     ErrP      = @zeros(nx,   ny)
     return AbsVx, AbsVy, RelVx, RelVy, ErrVx, ErrVy, AbsT, RelT, ErrT, AbsP, RelP, ErrP
+end
+
+# preallocate melting arrays
+function preAllocMelt(nx, ny)
+    H_lat     = @zeros(nx,   ny)
+    F         = @zeros(nx,   ny)
+    F_o       = @zeros(nx,   ny)
+    F_new     = @zeros(nx,   ny)
+    T_prime   = @zeros(nx,   ny)
+    T_sol     = @zeros(nx,   ny)
+    T_liq_lh  = @zeros(nx,   ny)
+    T_liq     = @zeros(nx,   ny)
+    F_cpx_out = @zeros(nx,   ny)
+    T_cpx_out = @zeros(nx,   ny)
+    return H_lat, F, F_o, F_new, T_prime, T_sol, T_liq_lh, T_liq, F_cpx_out, T_cpx_out
 end
 
 function preAllocRest(nx, ny, dt0, tol0, CD)
@@ -733,11 +772,11 @@ end
     return
 end
 
-@parallel function residuals!(ResVx::A, ResVy::A, ResP::A, ResT::A, τxx::A, τyy::A, τxy::A, ∇V::A, P::A, P_o::A, T::A, T_o::A, Kb::A, dT_diff::A, H::A, ρCp::A, dxc::A, dyc::A, dxn_v::A, dyn_v::A, dt::N, α::N, compFlag::N) where {A<:Data.Array, N<:Number}
+@parallel function residuals!(ResVx::A, ResVy::A, ResP::A, ResT::A, τxx::A, τyy::A, τxy::A, ∇V::A, P::A, P_o::A, T::A, T_o::A, Kb::A, dT_diff::A, H::A, H_lat::A, ρCp::A, dxc::A, dyc::A, dxn_v::A, dyn_v::A, dt::N, α::N, compFlag::N) where {A<:Data.Array, N<:Number}
     @all(ResVx) = (@d_xa(τxx) - @d_xa(P)) / @all(dxc) + @d_ya(τxy) / @all(dyn_v)
     @all(ResVy) = (@d_ya(τyy) - @d_yi(P)) / @inn_y(dyc) + @d_xi(τxy) / @all(dxn_v)
     @all(ResP)  = @all(∇V) + compFlag * (@inn_x(P) - @inn_x(P_o)) / (dt * @all(Kb)) - α * (@inn_x(T) - @inn_x(T_o)) / dt
-    @all(ResT)  = (@all(dT_diff) + @all(H)) / @all(ρCp) - (@inn_x(T) - @inn_x(T_o)) / dt
+    @all(ResT)  = (@all(dT_diff) + @all(H) + @all(H_lat)) / @all(ρCp) - (@inn_x(T) - @inn_x(T_o)) / dt
     return    
 end
 
@@ -816,6 +855,56 @@ end
 @parallel function getResVisc!(Errη::Data.Array, η::Data.Array, η_new::Data.Array, η_dif_new::Data.Array, η_dis_new::Data.Array, η_LTP_new::Data.Array, η_reg::Number)
     @all(η_new) = (1.0/@all(η_dif_new) + 1.0/@all(η_dis_new) + 1.0/@all(η_LTP_new)) ^ (-1.0) + η_reg
     @all(Errη)  = abs.((@all(η) - @all(η_new)) / @all(η_new))
+    return
+end
+
+# structure to hold melting parameters
+struct MeltParam
+    A1::Float64
+    A2::Float64
+    A3::Float64
+    B1::Float64
+    B2::Float64
+    B3::Float64
+    C1::Float64
+    C2::Float64
+    C3::Float64
+    r1::Float64
+    r2::Float64
+    β1::Float64
+    β2::Float64
+    Mcpx::Float64
+end
+
+# nondimensionalize melting parameters
+function nonDimMeltParam(LatH, A1, A2, A3, B1, B2, B3, C1, C2, C3, r2, CD, r1, β1, β2, Mcpx)
+    LatH    = nondimensionalize(LatH,    CD)
+    A1      = nondimensionalize(A1,      CD)
+    A2      = nondimensionalize(A2,      CD)
+    A3      = nondimensionalize(A3,      CD)
+    B1      = nondimensionalize(B1,      CD)
+    B2      = nondimensionalize(B2,      CD)
+    B3      = nondimensionalize(B3,      CD)
+    C1      = nondimensionalize(C1,      CD)
+    C2      = nondimensionalize(C2,      CD)
+    C3      = nondimensionalize(C3,      CD)
+    r2      = nondimensionalize(r2,      CD)
+    return LatH, MeltParam(A1, A2, A3, B1, B2, B3, C1, C2, C3, r1, r2, β1, β2, Mcpx)
+end
+
+# compute solidus, liquidus, melt fraction, and latent heat
+@parallel function meltInOne!(H_lat::A, F::A, F_new::A, T_prime::A, T_sol::A, T_liq::A, T_liq_lh::A, T_cpx_out::A, F_cpx_out::A, F_o::A, T::A, P::A, ρ::A, LatH::N, dt_I::N, MP::MeltParam, F_rel::N) where {A<:Data.Array, N<:Data.Number}
+    @all(T_sol)     = MP.A1 + MP.A2*@inn_x(P) + MP.A3*@inn_x(P)^2
+    @all(T_liq_lh)  = MP.B1 + MP.B2*@inn_x(P) + MP.B3*@inn_x(P)^2
+    @all(T_liq)     = MP.C1 + MP.C2*@inn_x(P) + MP.C3*@inn_x(P)^2
+    @all(F_cpx_out) = MP.Mcpx / (MP.r1 + MP.r2*@inn_x(P))
+    @all(T_cpx_out) = @all(T_sol) + (@all(T_liq_lh) - @all(T_sol)) * @all(F_cpx_out) ^ (1.0/MP.β1)
+    @all(T_prime)   = (@inn_x(T) - @all(T_sol)) / (@all(T_liq_lh) - @all(T_sol))
+    @all(F_new)     = ifelse(@all(T_prime) < 0, 0.0, @all(T_prime) ^ MP.β1)
+    @all(F_new)     = ifelse(@all(F_new) > @all(F_cpx_out), @all(F_cpx_out) + (1.0 - @all(F_cpx_out)) * ((@inn_x(T) - @all(T_cpx_out)) / (@all(T_liq) - @all(T_cpx_out))) ^ MP.β2, @all(F_new))
+    @all(F_new)     = ifelse(@all(F_new) > 1.0, 1.0, @all(F_new))
+    @all(F)         = (1.0 - F_rel) * @all(F) + F_rel * @all(F_new)
+    @all(H_lat)     = (@all(F_o) - @all(F)) * dt_I * @all(ρ) * LatH
     return
 end
 

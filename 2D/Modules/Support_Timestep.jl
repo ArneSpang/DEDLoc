@@ -12,7 +12,7 @@ function displayTimestep(dt_dim)
 end
 
 # rescale quantities that contain time in their units
-function rescaleTime!(dt, dt_o, dt0, Time, t_end, Vx, Vx_o, Vy, Vy_o, VxTop, VxBot, VxLeft, VxRight, VyTop, VyBot, VyLeft, VyRight, V0, ρ, ρ_o, η, η_o, η_e, η_v, η_ml, η_dif, η_dif_o, η_dif_new, η_dis, η_dis_o, η_dis_new, η_LTP, η_LTP_o, η_LTP_new, εxx, εyy, εxy, εxy_cen, εxx_f, εyy_f, εxy_f, εII, εII_v, εII_nl, εII_dif, εII_dis, εII_dis_g, εII_LTP, εII_LTP_g, εxx_elaOld, εyy_elaOld, εxy_elaOld, κ, qx, qy, dT_diff, H, Pre_dif, Pre_dis, ndis, ALTP, λ, Cp, η_reg, η_max, CD, fac)
+function rescaleTime!(dt, dt_o, dt0, Time, t_end, Vx, Vx_o, Vy, Vy_o, VxTop, VxBot, VxLeft, VxRight, VyTop, VyBot, VyLeft, VyRight, V0, ρ, ρ_o, η, η_o, η_e, η_v, η_ml, η_dif, η_dif_o, η_dif_new, η_dis, η_dis_o, η_dis_new, η_LTP, η_LTP_o, η_LTP_new, εxx, εyy, εxy, εxy_cen, εxx_f, εyy_f, εxy_f, εII, εII_v, εII_nl, εII_dif, εII_dis, εII_dis_g, εII_LTP, εII_LTP_g, εxx_elaOld, εyy_elaOld, εxy_elaOld, κ, qx, qy, dT_diff, H, Pre_dif, Pre_dis, ndis, ALTP, λ, Cp, LatH, η_reg, η_max, CD, fac)
     dt           *= fac           
     dt_o         *= fac           
     dt0          *= fac           
@@ -74,13 +74,14 @@ function rescaleTime!(dt, dt_o, dt0, Time, t_end, Vx, Vx_o, Vy, Vy_o, VxTop, VxB
     Pre_dis      *= fac^(1/ndis)
     ALTP         /= fac      
     λ            /= fac   
-    Cp           /= fac^2    
+    Cp           /= fac^2
+    LatH         /= fac^2    
     η_reg        *= fac         
     η_max        *= fac         
 
     CD2           = SI_units(length=CD.Length, temperature=CD.temperature, stress=CD.stress, viscosity=CD.viscosity/fac)
     
-    return CD2, dt, dt_o, dt0, Time, t_end, VxTop, VxBot, VxLeft, VxRight, VyTop, VyBot, VyLeft, VyRight, V0, Pre_dif, Pre_dis, ALTP, λ, Cp, η_reg, η_max
+    return CD2, dt, dt_o, dt0, Time, t_end, VxTop, VxBot, VxLeft, VxRight, VyTop, VyBot, VyLeft, VyRight, V0, Pre_dif, Pre_dis, ALTP, λ, Cp, LatH, η_reg, η_max
 end
 
 # rescale quantities that contain time in their units (outdated bulky version)
@@ -218,7 +219,7 @@ function rescaleEvoTime!(t_evo, dt_evo, Vxmax_evo, ηvmin_evo, εmax_evo, fac)
 end
 
 # save current solution
-@parallel function save_old!(τxx::A, τyy::A, τxy::A, τII::A, T::A, P::A, η::A, η_dif::A, η_dis::A, η_LTP::A, Vx::A, Vy::A, ρ::A, τxx_o::A, τyy_o::A, τxy_o::A, τII_o::A, T_o::A, P_o::A, η_o::A, η_dif_o::A, η_dis_o::A, η_LTP_o::A, Vx_o::A, Vy_o::A, ρ_o::A) where {A<:Data.Array}
+@parallel function save_old!(τxx::A, τyy::A, τxy::A, τII::A, T::A, P::A, η::A, η_dif::A, η_dis::A, η_LTP::A, Vx::A, Vy::A, ρ::A, F::A, τxx_o::A, τyy_o::A, τxy_o::A, τII_o::A, T_o::A, P_o::A, η_o::A, η_dif_o::A, η_dis_o::A, η_LTP_o::A, Vx_o::A, Vy_o::A, ρ_o::A, F_o::A) where {A<:Data.Array}
     @all(τxx_o)    = @all(τxx)
     @all(τyy_o)    = @all(τyy)
     @all(τxy_o)    = @all(τxy)
@@ -232,6 +233,7 @@ end
     @all(Vx_o)     = @all(Vx)
     @all(Vy_o)     = @all(Vy)
     @all(ρ_o)      = @all(ρ)
+    @all(F_o)      = @all(F)
     return
 end
 
@@ -244,7 +246,7 @@ end
 end
 
 # reset fields when time step is restarted
-@parallel function resetVals!(τxx::A, τyy::A, τxy::A, τII::A, T::A, P::A, η::A, η_dif::A, η_dis::A, η_LTP::A, Vx::A, Vy::A, ρ::A, τxx_o::A, τyy_o::A, τxy_o::A, τII_o::A, T_o::A, P_o::A, η_o::A, η_dif_o::A, η_dis_o::A, η_LTP_o::A, Vx_o::A, Vy_o::A, ρ_o::A) where {A<:Data.Array}
+@parallel function resetVals!(τxx::A, τyy::A, τxy::A, τII::A, T::A, P::A, η::A, η_dif::A, η_dis::A, η_LTP::A, Vx::A, Vy::A, ρ::A, F::A, τxx_o::A, τyy_o::A, τxy_o::A, τII_o::A, T_o::A, P_o::A, η_o::A, η_dif_o::A, η_dis_o::A, η_LTP_o::A, Vx_o::A, Vy_o::A, ρ_o::A, F_o::A) where {A<:Data.Array}
     @all(τxx)   = @all(τxx_o)
     @all(τyy)   = @all(τyy_o)
     @all(τxy)   = @all(τxy_o)
@@ -257,7 +259,8 @@ end
     @all(η_LTP) = @all(η_LTP_o)
     @all(Vx)    = @all(Vx_o)    
     @all(Vy)    = @all(Vy_o)   
-    @all(ρ)     = @all(ρ_o)     
+    @all(ρ)     = @all(ρ_o)
+    @all(F)     = @all(F_o)     
     return
 end
 
